@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="동글 가계부">
 <meta name="format-detection" content="telephone=no">
-<meta name="app-version" content="1.3.0">
+<meta name="app-version" content="1.4.0">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -459,6 +459,8 @@ main{flex:1;padding:0 16px calc(112px + var(--sab))}
 .sub-name{min-width:0;flex:1;font-size:12.5px;color:#7A6257;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sub-bal{flex:none;font-family:'Jua',sans-serif;font-size:14px;letter-spacing:.2px;color:#4A3A35;white-space:nowrap}
 .sub-bal.neg{color:var(--coral-d)}
+.sub-right{flex:none;display:flex;flex-direction:column;align-items:flex-end;line-height:1.2}
+.sub-off{font-size:9.5px;color:#9B87C4;margin-top:2px;white-space:nowrap}
 .sub-go{flex:none;font-size:12px;color:#DDBBA4}
 .sub.add{justify-content:center;gap:4px;margin-top:3px;padding:8px;border:1.5px dashed #F3D7BF;background:rgba(255,255,255,.5)}
 .sub.add .wc-plus{font-family:'Jua',sans-serif;color:#D9A98A;font-size:14px;line-height:1}
@@ -490,6 +492,49 @@ main{flex:1;padding:0 16px calc(112px + var(--sab))}
 }
 .wchips button.on{background:#FFEFE2;border-color:#FFC6A8;color:#B55C3C;box-shadow:0 3px 9px rgba(240,150,120,.16)}
 .wchips button:active{transform:scale(.96)}
+.wchips button.tr.on{background:#F3EFFD;border-color:#C9BDF0;color:#6F63B8;box-shadow:0 3px 9px rgba(150,130,230,.18)}
+.field-label .fl-note{color:#B9A79D;font-size:11.5px}
+
+/* 재산 포함 스위치 */
+.switch-row{
+  display:flex;align-items:center;gap:12px;justify-content:space-between;
+  padding:12px 15px;border-radius:18px;margin-top:16px;
+  background:#FFF8F0;border:1.5px solid #FAEBDA;
+}
+.switch-txt{min-width:0}
+.switch-txt b{display:block;font-family:'Jua',sans-serif;font-weight:400;font-size:13.5px;color:#584640;letter-spacing:.2px}
+.switch-txt small{display:block;font-size:11.5px;color:var(--ink3);margin-top:2px;line-height:1.55}
+.switch{
+  position:relative;flex:none;width:52px;height:30px;border-radius:99px;
+  background:#EFE2D5;border:1px solid #E9D9C9;transition:background .18s ease,border-color .18s ease;
+}
+.switch b{
+  position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;
+  background:#fff;box-shadow:0 2px 6px rgba(160,120,90,.28);transition:left .18s cubic-bezier(.3,.8,.4,1);
+}
+.switch.on{background:linear-gradient(150deg,#FFB49F,#FF8A7A);border-color:#FF9C86}
+.switch.on b{left:25px}
+.switch:active{transform:scale(.97)}
+
+/* 재산 제외 태그 */
+.tag-off{
+  flex:none;font-size:10px;line-height:1.6;color:#8B7BB8;background:#F4F0FC;border:1px solid #E7DFF7;
+  border-radius:99px;padding:0 6px;white-space:nowrap;
+}
+.offsum{color:#9B87C4}
+.axis-right{display:flex;flex-direction:column;align-items:flex-end;margin-left:auto;line-height:1.2}
+.axis-right .axis-bal{margin-left:0}
+.bank-off{font-size:10.5px;color:#9B87C4;margin-top:1px;white-space:nowrap}
+.sub-name.off{color:#B3A29A}
+.sub-bal.off{color:#A2948C}
+.axis-bal.off{color:#A2948C}
+.axis-tag{margin-left:6px;margin-right:2px}
+.sum-note{font-size:11.5px;color:#9B87C4;margin-top:2px}
+
+/* 이동(이체) */
+.type-toggle button[data-t="transfer"].on{color:#6F63B8}
+.wbadge.tr{color:#6F63B8;background:#F4F1FD;border-color:#E6DFF8}
+.entry-amt.tr{color:#6F63B8}
 .pmchips{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .pmchips button{padding:11px 0;font-size:13px;text-align:center}
 .pmchips button.on{font-family:'Jua',sans-serif}
@@ -605,8 +650,8 @@ function defaultCats(){
 }
 function defaultWallets(){
   return [
-    {id:'cash',group:'cash',name:'현금',emoji:'💵',initialBalance:0},
-    {id:'bank',group:'bank',name:'기본 계좌',emoji:'🏦',initialBalance:0}
+    {id:'cash',group:'cash',name:'현금',emoji:'💵',initialBalance:0,includeInTotal:true},
+    {id:'bank',group:'bank',name:'기본 계좌',emoji:'🏦',initialBalance:0,includeInTotal:true}
   ];
 }
 function freshState(){return {v:3,cats:defaultCats(),wallets:defaultWallets(),items:[]};}
@@ -637,7 +682,9 @@ function cleanWallets(list){
       group:grp,
       name:String(w.name||'').trim().slice(0,10)||(grp==='cash'?'현금':'계좌'),
       emoji:String(w.emoji||'').slice(0,8)||(grp==='cash'?'💵':'🏦'),
-      initialBalance:Math.round(Number(w.initialBalance)||0)
+      initialBalance:Math.round(Number(w.initialBalance)||0),
+      /* 재산 포함 여부 — 없던 예전 데이터는 모두 포함(true)으로 읽는다 */
+      includeInTotal:w.includeInTotal!==false
     });
   });
   if(!out.length) return {wallets:defaultWallets(),alias:alias};
@@ -649,7 +696,7 @@ function cleanWallets(list){
     cash=w;
   });
   if(!cash){
-    cash={id:'cash',group:'cash',name:'현금',emoji:'💵',initialBalance:0};
+    cash={id:'cash',group:'cash',name:'현금',emoji:'💵',initialBalance:0,includeInTotal:true};
     out.unshift(cash);
   }else{
     cash.name='현금'; cash.emoji='💵';
@@ -660,7 +707,7 @@ function cleanWallets(list){
   // 🏦 계좌는 항상 하나 이상
   if(!out.some(function(w){return w.group==='bank';})){
     out.push({id:out.some(function(w){return w.id==='bank';})?uid():'bank',
-      group:'bank',name:'기본 계좌',emoji:'🏦',initialBalance:0});
+      group:'bank',name:'기본 계좌',emoji:'🏦',initialBalance:0,includeInTotal:true});
   }
   // 옛 기본 '계좌' 이름을 '기본 계좌'로 다듬기 (잔액·기록은 그대로)
   out.forEach(function(w){
@@ -697,8 +744,28 @@ function normalize(d){
   var items=Array.isArray(d.items)?d.items.filter(function(x){
     return x && typeof x.amount==='number' && x.amount>0 &&
       /^\d{4}-\d{2}-\d{2}$/.test(String(x.date)) &&
-      (x.type==='expense'||x.type==='income');
+      (x.type==='expense'||x.type==='income'||x.type==='transfer');
   }).map(function(x){
+    if(x.type==='transfer'){
+      /* 🔄 이동(이체): 출금 지갑 → 입금 지갑. 지갑이 사라졌거나 같은 곳이면 버린다 */
+      var f=String(x.fromWalletId||''), t=String(x.toWalletId||'');
+      if(alias[f]) f=alias[f];
+      if(alias[t]) t=alias[t];
+      if(wids.indexOf(f)===-1||wids.indexOf(t)===-1||f===t) return null;
+      return {
+        id:String(x.id||uid()),
+        date:String(x.date),
+        type:'transfer',
+        amount:Math.round(x.amount),
+        fromWalletId:f,
+        toWalletId:t,
+        walletId:null,
+        payMethod:null,
+        cat:'',
+        memo:String(x.memo||'').slice(0,60),
+        createdAt:Number(x.createdAt)||Date.now()
+      };
+    }
     var wid=String(x.walletId||'');
     if(alias[wid]) wid=alias[wid];
     if(wids.indexOf(wid)===-1) wid='';
@@ -714,7 +781,7 @@ function normalize(d){
       memo:String(x.memo||'').slice(0,60),
       createdAt:Number(x.createdAt)||Date.now()
     };
-  }):[];
+  }).filter(Boolean):[];
   if(!exp.length){exp=defaultCats().expense;}
   if(!inc.length){inc=defaultCats().income;}
   return {v:3,cats:{expense:exp,income:inc},wallets:wallets,items:items};
@@ -742,7 +809,10 @@ function monthItems(m){
 }
 function totals(list){
   var inc=0,exp=0;
-  list.forEach(function(it){ if(it.type==='income') inc+=it.amount; else exp+=it.amount; });
+  list.forEach(function(it){
+    if(it.type==='income') inc+=it.amount;
+    else if(it.type==='expense') exp+=it.amount;
+  });
   return {inc:inc,exp:exp,bal:inc-exp};
 }
 function catOf(cid,type){
@@ -801,18 +871,30 @@ function payBadge(it){
 }
 function walletNet(id){
   var n=0;
-  state.items.forEach(function(it){ if(it.walletId===id) n+=(it.type==='income'?it.amount:-it.amount); });
+  state.items.forEach(function(it){
+    if(it.type==='transfer'){
+      if(it.fromWalletId===id) n-=it.amount;
+      if(it.toWalletId===id) n+=it.amount;
+      return;
+    }
+    if(it.walletId===id) n+=(it.type==='income'?it.amount:-it.amount);
+  });
   return n;
 }
 function walletBal(w){
   if(!w) return 0;
   return Math.round(Number(w.initialBalance)||0)+walletNet(w.id);
 }
+function isInTotal(w){ return !w || w.includeInTotal!==false; }
 function groupBal(group){
   return state.wallets.reduce(function(s,w){ return w.group===group?s+walletBal(w):s; },0);
 }
+/* 계좌 총합·전체 잔액에는 '재산 포함'인 지갑만 들어간다 */
+function sumBal(list){
+  return list.reduce(function(s,w){ return isInTotal(w)?s+walletBal(w):s; },0);
+}
 function totalBal(){
-  return state.wallets.reduce(function(s,w){return s+walletBal(w);},0);
+  return sumBal(state.wallets);
 }
 function walletLabel(w){
   if(!w) return '';
@@ -827,13 +909,21 @@ function summaryHTML(t){
   var incFlex=total?Math.max(t.inc,0):1, expFlex=total?t.exp:1;
   var cash=cashWallet(), banks=bankWallets();
   var cashBal=cash?walletBal(cash):0;
-  var bankTotal=groupBal('bank');
+  var cashIn=isInTotal(cash);
+  var offBanks=banks.filter(function(w){return !isInTotal(w);});
+  var offSum=offBanks.reduce(function(s,w){return s+walletBal(w);},0);
+  var bankTotal=sumBal(banks);
+  var offCash=(cash&&!cashIn)?walletBal(cash):0;
+  var offAll=offSum+offCash, offCount=offBanks.length+(cash&&!cashIn?1:0);
   var subs=banks.map(function(w){
-    var b=walletBal(w);
+    var b=walletBal(w), on=isInTotal(w);
     return '<button type="button" class="sub" data-wallet="'+esc(w.id)+'">'+
       '<span class="sub-emoji">'+esc(w.emoji)+'</span>'+
-      '<span class="sub-name">'+esc(w.name)+'</span>'+
-      '<b class="sub-bal'+(b<0?' neg':'')+'">'+won(b)+'</b>'+
+      '<span class="sub-name'+(on?'':' off')+'">'+esc(w.name)+'</span>'+
+      '<span class="sub-right">'+
+        '<b class="sub-bal'+(b<0?' neg':(on?'':' off'))+'">'+won(b)+'</b>'+
+        (on?'':'<span class="sub-off">재산 제외</span>')+
+      '</span>'+
       '<span class="sub-go">›</span>'+
     '</button>';
   }).join('');
@@ -841,19 +931,26 @@ function summaryHTML(t){
   '<div class="card summary">'+
     '<div class="sum-label">💰 전체 현재 잔액</div>'+
     '<div class="sum-balance'+(tb<0?' neg':'')+'">'+won(tb)+'</div>'+
+    (offCount?'<div class="sum-note">재산에서 뺀 항목 '+offCount+'개 · '+won(offAll)+'</div>':'')+
     '<div class="axes">'+
       '<button type="button" class="axis" id="cashCard"'+(cash?' data-wallet="'+esc(cash.id)+'"':'')+'>'+
         '<span class="axis-head">'+
           '<span class="axis-emoji">💵</span>'+
           '<span class="axis-name"><b>현금</b><small>탭해서 잔액 맞추기</small></span>'+
-          '<span class="axis-bal'+(cashBal<0?' neg':'')+'">'+won(cashBal)+'</span>'+
+          '<span class="axis-right">'+
+            '<span class="axis-bal'+(cashBal<0?' neg':(cashIn?'':' off'))+'">'+won(cashBal)+'</span>'+
+            (cashIn?'':'<span class="bank-off">재산 제외</span>')+
+          '</span>'+
         '</span>'+
       '</button>'+
       '<div class="bankcard">'+
         '<div class="axis-head">'+
           '<span class="axis-emoji">🏦</span>'+
           '<span class="axis-name"><b>계좌</b><small>세부 계좌 '+banks.length+'개</small></span>'+
-          '<span class="axis-bal'+(bankTotal<0?' neg':'')+'">'+won(bankTotal)+'</span>'+
+          '<span class="axis-right">'+
+            '<span class="axis-bal'+(bankTotal<0?' neg':'')+'">'+won(bankTotal)+'</span>'+
+            (offBanks.length?'<span class="bank-off">재산 제외 '+won(offSum)+'</span>':'')+
+          '</span>'+
         '</div>'+
         '<div class="subs">'+subs+
           '<button type="button" class="sub add" id="bankAdd">'+
@@ -889,6 +986,19 @@ function emptyHTML(filtered){
   '</div>';
 }
 function entryHTML(it){
+  if(it.type==='transfer'){
+    var fw=walletById(it.fromWalletId), tw=walletById(it.toWalletId);
+    var fTxt=fw?(esc(fw.emoji)+' '+esc(fw.name)):'?', tTxt=tw?(esc(tw.emoji)+' '+esc(tw.name)):'?';
+    return '<button class="entry" data-id="'+esc(it.id)+'">'+
+      '<span class="cat-ic" style="background:#EFEAFC">🔄</span>'+
+      '<span class="entry-mid">'+
+        '<span class="entry-cat">이동</span>'+
+        '<span class="entry-sub"><span class="wbadge tr">'+fTxt+' → '+tTxt+'</span>'+
+          (it.memo?'<span class="entry-memo">'+esc(it.memo)+'</span>':'')+'</span>'+
+      '</span>'+
+      '<span class="entry-amt tr">⇄ '+won(it.amount)+'</span>'+
+    '</button>';
+  }
   var c=catView(it);
   var sign=it.type==='income'?'+':'-';
   var cls=it.type==='income'?'in':'ex';
@@ -932,7 +1042,15 @@ function filterValid(f){
 }
 function inFilter(it,f){
   if(f==='all') return true;
-  if(f==='credit') return payOf(it)==='credit';
+  if(f==='credit') return it.type!=='transfer'&&payOf(it)==='credit';
+  if(it.type==='transfer'){
+    if(f.indexOf('g:')===0){
+      var g=f.slice(2);
+      var a=walletById(it.fromWalletId), b=walletById(it.toWalletId);
+      return !!((a&&a.group===g)||(b&&b.group===g));
+    }
+    return it.fromWalletId===f.slice(2)||it.toWalletId===f.slice(2);
+  }
   var w=walletOf(it);
   if(f.indexOf('g:')===0) return !!w && w.group===f.slice(2);
   return it.walletId===f.slice(2);
@@ -1096,8 +1214,26 @@ function catGridHTML(type,sel){
       '<span class="ce">'+esc(c.emoji)+'</span><span class="cn">'+esc(c.name)+'</span></button>';
   }).join('');
 }
+function walletChipsHTML(sel,attr){
+  var cash=cashWallet(), banks=bankWallets();
+  var html='<div class="wchips">';
+  if(cash) html+='<button type="button" class="tr'+(sel===cash.id?' on':'')+'" data-'+attr+'="'+esc(cash.id)+'">💵 현금</button>';
+  banks.forEach(function(w){
+    html+='<button type="button" class="tr'+(sel===w.id?' on':'')+'" data-'+attr+'="'+esc(w.id)+'">'+esc(w.emoji)+' '+esc(w.name)+'</button>';
+  });
+  return html+'</div>';
+}
 function payAreaHTML(){
   var cash=cashWallet(), banks=bankWallets();
+  if(draft.type==='transfer'){
+    var same=!!draft.from&&draft.from===draft.to;
+    return '<label class="field-label">어디서 보냈어요? <span class="fl-note">(출금)</span></label>'+
+      walletChipsHTML(draft.from,'from')+
+      '<label class="field-label">어디로 옮겼어요? <span class="fl-note">(입금)</span></label>'+
+      walletChipsHTML(draft.to,'to')+
+      (same?'<p class="hint pm" style="color:#D06A5A">보낸 곳과 받은 곳이 같아요. 다른 곳을 골라주세요 🙅</p>':'')+
+      '<p class="hint pm" style="color:#9B87C4">내 지갑끼리 돈을 옮기는 거라 이번 달 수입·지출 합계엔 안 잡혀요.</p>';
+  }
   if(draft.type==='income'){
     var ih='<label class="field-label">입금처</label><div class="wchips">';
     if(cash){
@@ -1149,22 +1285,38 @@ function resolvePay(){
   if(draft.pay==='cash') return {payMethod:'cash', walletId:cash?cash.id:null};
   return {payMethod:draft.pay==='debit'?'debit':'transfer', walletId:pickBank()};
 }
+function defaultFromTo(){
+  var banks=bankWallets();
+  var from=(banks[0]||state.wallets[0]||{}).id||null;
+  var to=null;
+  for(var i=0;i<state.wallets.length;i++){
+    if(state.wallets[i].id!==from){ to=state.wallets[i].id; break; }
+  }
+  return {from:from,to:to};
+}
 function openEntrySheet(id){
   var it=id?state.items.find(function(x){return x.id===id;}):null;
   var defDate;
   if(it) defDate=it.date;
   else defDate=(view.month===THIS_MONTH)?TODAY:(view.month+'-01');
   var defBank=(bankWallets()[0]||{}).id;
-  if(it){
+  if(it&&it.type==='transfer'){
+    draft={
+      id:it.id,type:'transfer',amount:it.amount,cat:'',date:it.date,memo:it.memo,
+      pay:'transfer',acct:defBank,from:it.fromWalletId,to:it.toWalletId
+    };
+  }else if(it){
     var itw=walletById(it.walletId);
     draft={
       id:it.id,type:it.type,amount:it.amount,cat:it.cat,date:it.date,memo:it.memo,
       pay:payOf(it),
-      acct:(itw&&itw.group==='bank')?itw.id:defBank
+      acct:(itw&&itw.group==='bank')?itw.id:defBank,
+      from:null,to:null
     };
   }else{
+    var ft0=defaultFromTo();
     draft={id:null,type:'expense',amount:0,cat:(state.cats.expense[0]||{}).id,date:defDate,memo:'',
-       pay:'transfer',acct:defBank};
+       pay:'transfer',acct:defBank,from:ft0.from,to:ft0.to};
   }
   if(draft.type==='expense'&&!state.cats.expense.some(function(c){return c.id===draft.cat;}))
     draft.cat=(state.cats.expense[0]||{}).id;
@@ -1176,8 +1328,9 @@ function openEntrySheet(id){
     '<div class="type-toggle" id="typeToggle">'+
       '<button type="button" data-t="expense" class="'+(draft.type==='expense'?'on':'')+'">💸 지출</button>'+
       '<button type="button" data-t="income" class="'+(draft.type==='income'?'on':'')+'">💵 수입</button>'+
+      '<button type="button" data-t="transfer" class="'+(draft.type==='transfer'?'on':'')+'">🔄 이동</button>'+
     '</div>'+
-    '<label class="field-label" for="amtInput">얼마였어요?</label>'+
+    '<label class="field-label" for="amtInput" id="amtLabel">'+(draft.type==='transfer'?'얼마를 옮겼어요?':'얼마였어요?')+'</label>'+
     '<div class="amt-box"><input id="amtInput" class="amt" type="text" inputmode="numeric" autocomplete="off" placeholder="0" value="'+(draft.amount?fmt(draft.amount):'')+'"><span class="w">원</span></div>'+
     '<div class="chips">'+
       '<button type="button" data-add="1000">+1천</button>'+
@@ -1186,8 +1339,10 @@ function openEntrySheet(id){
       '<button type="button" data-add="50000">+5만</button>'+
       '<button type="button" class="clear" data-clear="1">지우기</button>'+
     '</div>'+
-    '<label class="field-label" id="catLabel">'+(draft.type==='income'?'어디서 받았어요?':'어디에 썼어요?')+'</label>'+
-    '<div class="cat-grid" id="catGrid">'+catGridHTML(draft.type,draft.cat)+'</div>'+
+    '<div id="catSection"'+(draft.type==='transfer'?' hidden':'')+'>'+
+      '<label class="field-label" id="catLabel">'+(draft.type==='income'?'어디서 받았어요?':'어디에 썼어요?')+'</label>'+
+      '<div class="cat-grid" id="catGrid">'+(draft.type==='transfer'?'':catGridHTML(draft.type,draft.cat))+'</div>'+
+    '</div>'+
     '<div id="payArea">'+payAreaHTML()+'</div>'+
     '<div class="row2">'+
       '<div class="fld"><label for="dateInput">날짜</label>'+
@@ -1198,7 +1353,7 @@ function openEntrySheet(id){
       '<div class="day-quick"><button type="button" data-day="today">오늘</button><button type="button" data-day="yesterday">어제</button></div>'+
     '</div>'+
     '<label class="field-label" for="memoInput">메모 (선택)</label>'+
-    '<input id="memoInput" class="text-in" type="text" maxlength="60" placeholder="예) 김밥천국 점심" value="'+esc(draft.memo)+'">'+
+    '<input id="memoInput" class="text-in" type="text" maxlength="60" placeholder="'+(draft.type==='transfer'?'예) 카카오페이 충전':'예) 김밥천국 점심')+'" value="'+esc(draft.memo)+'">'+
     '<div class="sheet-actions">'+
       (it?'<button type="button" class="btn-del" id="delBtn">삭제</button>':'')+
       '<button type="button" class="btn-primary" id="saveBtn"> 저장하기</button>'+
@@ -1207,6 +1362,9 @@ function openEntrySheet(id){
       wrap.querySelector('[data-close]').addEventListener('click',function(){ closeSheet(); });
       var amtEl=wrap.querySelector('#amtInput');
       var gridEl=wrap.querySelector('#catGrid');
+      var catSec=wrap.querySelector('#catSection');
+      var catLabel=wrap.querySelector('#catLabel');
+      var amtLabel=wrap.querySelector('#amtLabel');
       var dateEl=wrap.querySelector('#dateInput');
       var payArea=wrap.querySelector('#payArea');
       function renderPay(){ payArea.innerHTML=payAreaHTML(); }
@@ -1216,9 +1374,18 @@ function openEntrySheet(id){
         if(b.dataset.t===draft.type) return;
         draft.type=b.dataset.t;
         $$('#typeToggle button',wrap).forEach(function(x){x.classList.toggle('on',x.dataset.t===draft.type);});
+        catSec.hidden=(draft.type==='transfer');
+        amtLabel.textContent=(draft.type==='transfer')?'얼마를 옮겼어요?':'얼마였어요?';
+        wrap.querySelector('#memoInput').placeholder=(draft.type==='transfer')?'예) 카카오페이 충전':'예) 김밥천국 점심';
+        if(draft.type==='transfer'){
+          if(!walletById(draft.from)||!walletById(draft.to)||draft.from===draft.to){
+            var ft=defaultFromTo(); draft.from=ft.from; draft.to=ft.to;
+          }
+          renderPay(); return;
+        }
         if(!state.cats[draft.type].some(function(c){return c.id===draft.cat;})) draft.cat=(state.cats[draft.type][0]||{}).id;
         gridEl.innerHTML=catGridHTML(draft.type,draft.cat);
-        wrap.querySelector('#catLabel').textContent=draft.type==='income'?'어디서 받았어요?':'어디에 썼어요?';
+        catLabel.textContent=draft.type==='income'?'어디서 받았어요?':'어디에 썼어요?';
         if(draft.type==='income'&&(draft.pay==='debit'||draft.pay==='credit')) draft.pay='transfer';
         if(draft.pay!=='cash'&&!bankWallets().some(function(w){return w.id===draft.acct;}))
           draft.acct=(bankWallets()[0]||{}).id;
@@ -1231,6 +1398,8 @@ function openEntrySheet(id){
       });
       payArea.addEventListener('click',function(e){
         var b=e.target.closest('button'); if(!b) return;
+        if(b.dataset.from){ draft.from=b.dataset.from; renderPay(); return; }
+        if(b.dataset.to){ draft.to=b.dataset.to; renderPay(); return; }
         if(b.dataset.pay){
           draft.pay=b.dataset.pay;
           if((draft.pay==='transfer'||draft.pay==='debit')&&!bankWallets().some(function(w){return w.id===draft.acct;}))
@@ -1285,23 +1454,36 @@ function openEntrySheet(id){
         }
         var d=dateEl.value||draft.date;
         var memo=wrap.querySelector('#memoInput').value.trim().slice(0,60);
-        var cats=state.cats[draft.type];
-        var cat=cats.some(function(c){return c.id===draft.cat;})?draft.cat:(cats[0]||{}).id;
-        var wOut=resolvePay();
         var wasEdit=!!draft.id;
         var sameMonth=(d.slice(0,7)===view.month);
+        var rec;
+        if(draft.type==='transfer'){
+          if(!walletById(draft.from)||!walletById(draft.to)||draft.from===draft.to){
+            toast('보낸 곳과 받은 곳을 다르게 골라주세요 🔄'); return;
+          }
+          rec={date:d,type:'transfer',amount:draft.amount,cat:'',walletId:null,payMethod:null,
+               fromWalletId:draft.from,toWalletId:draft.to,memo:memo};
+        }else{
+          var cats=state.cats[draft.type];
+          var cat=cats.some(function(c){return c.id===draft.cat;})?draft.cat:(cats[0]||{}).id;
+          var wOut=resolvePay();
+          rec={date:d,type:draft.type,amount:draft.amount,cat:cat,walletId:wOut.walletId,payMethod:wOut.payMethod,
+               fromWalletId:null,toWalletId:null,memo:memo};
+        }
         if(wasEdit&&sameMonth) keepScrollY=window.scrollY;
         if(wasEdit){
           var target=state.items.find(function(x){return x.id===draft.id;});
-          if(target){ target.date=d; target.type=draft.type; target.amount=draft.amount; target.cat=cat; target.walletId=wOut.walletId; target.payMethod=wOut.payMethod; target.memo=memo; }
+          if(target){ target.date=rec.date; target.type=rec.type; target.amount=rec.amount; target.cat=rec.cat;
+            target.walletId=rec.walletId; target.payMethod=rec.payMethod;
+            target.fromWalletId=rec.fromWalletId; target.toWalletId=rec.toWalletId; target.memo=rec.memo; }
         }else{
-          state.items.push({id:uid(),date:d,type:draft.type,amount:draft.amount,cat:cat,walletId:wOut.walletId,payMethod:wOut.payMethod,memo:memo,createdAt:Date.now()});
+          rec.id=uid(); rec.createdAt=Date.now(); state.items.push(rec);
         }
         save();
         view.month=d.slice(0,7);
         closeSheet(); render();
         if(!wasEdit) window.scrollTo(0,0);
-        toast(wasEdit?'고쳤어요 ✨':'저장했어요 🐷');
+        toast(wasEdit?'고쳤어요 ✨':(rec.type==='transfer'?'옮긴 걸 기록했어요 🔄':'저장했어요 🐷'));
       });
     }
   );
@@ -1322,22 +1504,40 @@ function bindAmt(el,apply){
     el.value=v?fmt(v):'';
   });
 }
+function incSwitchHTML(on){
+  return '<div class="switch-row">'+
+    '<span class="switch-txt"><b>전체 현재 잔액에 포함</b>'+
+      '<small>끄면 맨 위 \'전체 현재 잔액\' 합계에서 빠지고 이 항목 잔액만 따로 보여요</small></span>'+
+    '<button type="button" class="switch'+(on?' on':'')+'" id="incSwitch" role="switch" aria-checked="'+(on?'true':'false')+'" aria-label="전체 현재 잔액에 포함"><b></b></button>'+
+  '</div>';
+}
+function bindIncSwitch(wrap){
+  var sw=wrap.querySelector('#incSwitch'); if(!sw) return;
+  sw.addEventListener('click',function(){
+    wDraft.include=!wDraft.include;
+    sw.classList.toggle('on',wDraft.include);
+    sw.setAttribute('aria-checked',wDraft.include?'true':'false');
+  });
+}
 function openCashSheet(){
   var w=cashWallet(); if(!w) return;
-  wDraft={id:w.id,bal:walletBal(w)};
+  wDraft={id:w.id,bal:walletBal(w),include:isInTotal(w)};
   openSheet(
     '<div class="sheet-head"><h2>💵 현금 잔액 맞추기</h2><button class="xbtn" data-close>✕</button></div>'+
     '<label class="field-label" for="cashBal">지금 가진 현금</label>'+
     amtBoxHTML('cashBal',wDraft.bal,'현금 잔액')+
     '<p class="hint">지금 지갑에 있는 현금을 적으면, 그 뒤 생기는 수입·지출만큼 <b>자동으로 바뀌어요</b>.</p>'+
+    incSwitchHTML(wDraft.include)+
     '<div class="sheet-actions"><button type="button" class="btn-primary" id="cashSave">저장하기</button></div>',
     function(wrap){
       wrap.querySelector('[data-close]').addEventListener('click',function(){ closeSheet(); });
       var balEl=wrap.querySelector('#cashBal');
       bindAmt(balEl,function(v){ wDraft.bal=v; });
+      bindIncSwitch(wrap);
       wrap.querySelector('#cashSave').addEventListener('click',function(){
         var w2=cashWallet(); if(!w2){ closeSheet(); return; }
         w2.initialBalance=Math.round(wDraft.bal-walletNet(w2.id));
+        w2.includeInTotal=!!wDraft.include;
         save(); closeSheet(); render(); toast('현금 잔액을 맞췄어요 ✨');
       });
     }
@@ -1349,7 +1549,7 @@ function openWalletSheet(id){
   var isNew=!w;
   var cur=w?walletBal(w):0;
   var banks=bankWallets();
-  wDraft={id:w?w.id:null,emoji:w?w.emoji:'🏦',name:w?w.name:'',bal:cur};
+  wDraft={id:w?w.id:null,emoji:w?w.emoji:'🏦',name:w?w.name:'',bal:cur,include:w?isInTotal(w):true};
   var canDel=!!w&&banks.length>1;
   openSheet(
     '<div class="sheet-head"><h2>'+(isNew?'계좌 세부 항목 추가':'세부 계좌 고치기')+'</h2><button class="xbtn" data-close>✕</button></div>'+
@@ -1360,6 +1560,7 @@ function openWalletSheet(id){
     '<label class="field-label" for="wBal">'+(w?'지금 이 계좌의 잔액':'지금 이 계좌에 있는 돈')+'</label>'+
     amtBoxHTML('wBal',cur,'계좌 잔액')+
     '<p class="hint">예) <b>국민은행</b> · <b>카카오뱅크</b> · <b>비상금</b>처럼 나눠 두면 계좌별 잔액을 따로 볼 수 있어요.</p>'+
+    incSwitchHTML(wDraft.include)+
     '<div class="sheet-actions">'+
       (canDel?'<button type="button" class="btn-del" id="wDel">삭제</button>':'')+
       '<button type="button" class="btn-primary" id="wSave">'+(isNew?'추가하기':'저장하기')+'</button>'+
@@ -1369,16 +1570,17 @@ function openWalletSheet(id){
       wrap.querySelector('[data-close]').addEventListener('click',function(){ closeSheet(); });
       var balEl=wrap.querySelector('#wBal');
       bindAmt(balEl,function(v){ wDraft.bal=v; });
+      bindIncSwitch(wrap);
       wrap.querySelector('#wSave').addEventListener('click',function(){
         var name=wrap.querySelector('#wName').value.trim().slice(0,10);
         var emoji=wrap.querySelector('#wEmoji').value.trim().slice(0,8)||'🏦';
         if(!name){ toast('이름을 적어주세요 ✏️'); wrap.querySelector('#wName').focus(); return; }
         if(isNew){
-          state.wallets.push({id:uid(),group:'bank',name:name,emoji:emoji,initialBalance:Math.round(wDraft.bal)});
+          state.wallets.push({id:uid(),group:'bank',name:name,emoji:emoji,initialBalance:Math.round(wDraft.bal),includeInTotal:!!wDraft.include});
         }else{
           var w2=walletById(wDraft.id);
           if(!w2){ closeSheet(); return; }
-          w2.name=name; w2.emoji=emoji;
+          w2.name=name; w2.emoji=emoji; w2.includeInTotal=!!wDraft.include;
           // 지금 잔액을 그대로 보이게: initialBalance = 입력한 잔액 - (수입-지출)
           w2.initialBalance=Math.round(wDraft.bal-walletNet(w2.id));
         }
@@ -1391,11 +1593,20 @@ function openWalletSheet(id){
         var rest=bankWallets().filter(function(x){return x.id!==w2.id;});
         if(!rest.length){ toast('계좌 항목은 하나 이상 있어야 해요 🐷'); return; }
         var target=rest.find(function(x){return x.id==='bank';})||rest[0];
-        var moved=state.items.filter(function(it){return it.walletId===w2.id;}).length;
+        var moved=state.items.filter(function(it){
+          return it.type==='transfer'?(it.fromWalletId===w2.id||it.toWalletId===w2.id):(it.walletId===w2.id);
+        }).length;
         var msg='\''+w2.name+'\' 계좌를 지울까요?'+
           (moved?'\n이 계좌의 기록 '+moved+'건과 잔액은 \''+target.name+'\'(으)로 옮겨져요.':'\n잔액도 함께 사라져요.');
         if(!confirm(msg)) return;
-        state.items.forEach(function(it){ if(it.walletId===w2.id) it.walletId=target.id; });
+        state.items.forEach(function(it){
+          if(it.type==='transfer'){
+            if(it.fromWalletId===w2.id) it.fromWalletId=target.id;
+            if(it.toWalletId===w2.id) it.toWalletId=target.id;
+          }else if(it.walletId===w2.id) it.walletId=target.id;
+        });
+        // 이동 기록의 보낸 곳·받은 곳이 같아지면 의미가 없으니 지운다
+        state.items=state.items.filter(function(it){ return !(it.type==='transfer'&&it.fromWalletId===it.toWalletId); });
         target.initialBalance=Math.round(Number(target.initialBalance)||0)+Math.round(Number(w2.initialBalance)||0);
         state.wallets=state.wallets.filter(function(x){return x.id!==w2.id;});
         if(view.filter==='w:'+w2.id) view.filter='all';
