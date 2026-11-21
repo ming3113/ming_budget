@@ -1161,7 +1161,7 @@ function openMenu(){
     '<button type="button" class="menu-item" data-a="cats"><span class="mi">🏷️</span><span>카테고리 편집<small>이름·이모지를 바꾸거나 새로 만들기</small></span></button>'+
     '<button type="button" class="menu-item" data-a="export"><span class="mi">📤</span><span>백업 내보내기<small>JSON 파일로 저장해 두기</small></span></button>'+
     '<button type="button" class="menu-item" data-a="import"><span class="mi">📥</span><span>백업 불러오기<small>저장해 둔 JSON 파일 가져오기</small></span></button>'+
-    '<button type="button" class="menu-item danger" data-a="reset"><span class="mi">🧹</span><span>전체 초기화<small>모든 기록과 카테고리 지우기</small></span></button>'+
+    '<button type="button" class="menu-item danger" data-a="reset"><span class="mi">🧹</span><span>전체 초기화<small>모든 기록·카테고리·지갑 지우기</small></span></button>'+
     '<p class="menu-note">기록은 이 기기 브라우저에만 저장돼요.<br>폰을 바꿀 땐 백업 파일을 꼭 챙겨주세요 🐷</p>',
     function(wrap){
       wrap.querySelector('[data-close]').addEventListener('click',function(){ closeSheet(); });
@@ -1205,7 +1205,7 @@ $('#importFile').addEventListener('change',function(){
   rd.readAsText(f);
 });
 function resetAll(){
-  if(!confirm('모든 기록과 카테고리를 지울까요?\n되돌릴 수 없어요.')) return;
+  if(!confirm('모든 기록과 카테고리, 지갑 설정을 지울까요?\n되돌릴 수 없어요.')) return;
   state=freshState(); view.filter='all'; save(); closeSheet(); view.month=THIS_MONTH; render();
   toast('깨끗하게 비웠어요 🧹');
 }
