@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="동글 가계부">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFCF5"/>
+      <stop offset="1" stop-color="#FFEDDE"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="115" fill="url(#bg)"/>
+  <!-- 귀 -->
+  <ellipse cx="161" cy="186" rx="55" ry="60" fill="#FF9278" stroke="#EE7C63" stroke-width="4"/>
+  <ellipse cx="351" cy="186" rx="55" ry="60" fill="#FF9278" stroke="#EE7C63" stroke-width="4"/>
+  <ellipse cx="161" cy="194" rx="26" ry="29" fill="#F78068"/>
+  <ellipse cx="351" cy="194" rx="26" ry="29" fill="#F78068"/>
+  <!-- 얼굴 -->
+  <ellipse cx="256" cy="280" rx="150" ry="136" fill="#FFA98F" stroke="#EE7C63" stroke-width="5"/>
+  <!-- 볼 -->
+  <g filter="url(#soft)" opacity=".55">
+    <ellipse cx="159" cy="321" rx="32" ry="20" fill="#FF7864"/>
+    <ellipse cx="353" cy="321" rx="32" ry="20" fill="#FF7864"/>
+  </g>
+  <!-- 주둥이 -->
+  <ellipse cx="256" cy="311" rx="66" ry="48" fill="#FF846A" stroke="#E2725A" stroke-width="4"/>
+  <ellipse cx="235" cy="311" rx="9" ry="12.5" fill="#BC584A"/>
+  <ellipse cx="277" cy="311" rx="9" ry="12.5" fill="#BC584A"/>
+  <!-- 눈 -->
+  <ellipse cx="202" cy="254" rx="15" ry="17" fill="#5C3E36"/>
+  <ellipse cx="310" cy="254" rx="15" ry="17" fill="#5C3E36"/>
+  <circle cx="206.5" cy="248" r="4.5" fill="#FFFFFF"/>
+  <circle cx="314.5" cy="248" r="4.5" fill="#FFFFFF"/>
+</svg>
