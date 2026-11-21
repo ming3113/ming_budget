@@ -1219,7 +1219,9 @@ function openEntrySheet(id){
         if(!state.cats[draft.type].some(function(c){return c.id===draft.cat;})) draft.cat=(state.cats[draft.type][0]||{}).id;
         gridEl.innerHTML=catGridHTML(draft.type,draft.cat);
         wrap.querySelector('#catLabel').textContent=draft.type==='income'?'어디서 받았어요?':'어디에 썼어요?';
-        if(draft.type==='income'&&draft.pay!=='cash'&&!draft.acct) draft.acct=(bankWallets()[0]||{}).id;
+        if(draft.type==='income'&&(draft.pay==='debit'||draft.pay==='credit')) draft.pay='transfer';
+        if(draft.pay!=='cash'&&!bankWallets().some(function(w){return w.id===draft.acct;}))
+          draft.acct=(bankWallets()[0]||{}).id;
         renderPay();
       });
       gridEl.addEventListener('click',function(e){
