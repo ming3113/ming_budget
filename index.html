@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="동글 가계부">
 <meta name="format-detection" content="telephone=no">
-<meta name="app-version" content="1.2.0">
+<meta name="app-version" content="1.3.0">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -143,6 +143,8 @@ main{flex:1;padding:0 16px calc(112px + var(--sab))}
 .ratio i{display:block;border-radius:99px;transition:flex .3s ease}
 .ratio .in{background:linear-gradient(90deg,#9BEAD8,#5FC9B0)}
 .ratio .ex{background:linear-gradient(90deg,#FFC0AE,#FF8A7A)}
+.ratio.zero{background:#F2E5D7}
+.ratio.zero i{display:none}
 .sum-row{display:flex;gap:10px}
 .sum-item{
   flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;font-size:11.5px;color:#96796A;
@@ -488,6 +490,10 @@ main{flex:1;padding:0 16px calc(112px + var(--sab))}
 }
 .wchips button.on{background:#FFEFE2;border-color:#FFC6A8;color:#B55C3C;box-shadow:0 3px 9px rgba(240,150,120,.16)}
 .wchips button:active{transform:scale(.96)}
+.pmchips{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pmchips button{padding:11px 0;font-size:13px;text-align:center}
+.pmchips button.on{font-family:'Jua',sans-serif}
+.hint.pm{margin-top:8px;padding-left:1px}
 .wbank{display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex-basis:100%}
 .wbank-label{flex:none;font-size:11px;color:#B2907A;padding-top:2px}
 
@@ -664,6 +670,21 @@ function cleanWallets(list){
   });
   return {wallets:out,alias:alias};
 }
+/* 결제 방식: 💵 현금(cash) · 🏦 계좌이체(transfer) · 💳 체크카드(debit) · 💳 신용카드(credit)
+   예전 기록은 현금 지갑에서 빠졌으면 'cash', 계좌 기록이면 'transfer'로 읽어 그대로 살립니다.
+   신용카드는 잔액에서 바로 빠지지 않으므로 walletId가 없습니다(null). */
+function isPay(p){ return p==='cash'||p==='transfer'||p==='debit'||p==='credit'; }
+function payPack(x,wid,wgroup,cashId,bankFallback){
+  var p=String(x.payMethod||'');
+  if(x.type==='income'){
+    if(p!=='cash'&&p!=='transfer') p=(wgroup[wid]==='cash')?'cash':'transfer';
+    return {payMethod:p, walletId:p==='cash'?cashId:(wgroup[wid]==='bank'?wid:bankFallback)};
+  }
+  if(!isPay(p)) p=(wgroup[wid]==='cash')?'cash':'transfer';
+  if(p==='credit') return {payMethod:'credit', walletId:null};
+  if(p==='cash') return {payMethod:'cash', walletId:cashId};
+  return {payMethod:p, walletId:(wgroup[wid]==='bank'?wid:bankFallback)};
+}
 function normalize(d){
   if(!d||typeof d!=='object'||!d.cats||typeof d.cats!=='object') return null;
   var exp=cleanCats(d.cats.expense), inc=cleanCats(d.cats.income);
@@ -671,6 +692,8 @@ function normalize(d){
   var wids=wallets.map(function(w){return w.id;});
   var bankIds=wallets.filter(function(w){return w.group==='bank';}).map(function(w){return w.id;});
   var fallback=bankIds.indexOf('bank')>-1?'bank':(bankIds[0]||wids[0]);
+  var cashId=(wallets.filter(function(w){return w.group==='cash';})[0]||{}).id;
+  var wgroup={}; wallets.forEach(function(w){ wgroup[w.id]=w.group; });
   var items=Array.isArray(d.items)?d.items.filter(function(x){
     return x && typeof x.amount==='number' && x.amount>0 &&
       /^\d{4}-\d{2}-\d{2}$/.test(String(x.date)) &&
@@ -678,13 +701,16 @@ function normalize(d){
   }).map(function(x){
     var wid=String(x.walletId||'');
     if(alias[wid]) wid=alias[wid];
+    if(wids.indexOf(wid)===-1) wid='';
+    var pack=payPack(x,wid,wgroup,cashId,fallback);
     return {
       id:String(x.id||uid()),
       date:String(x.date),
       type:x.type,
       amount:Math.round(x.amount),
       cat:String(x.cat||''),
-      walletId:wids.indexOf(wid)>-1?wid:fallback,
+      walletId:pack.walletId,
+      payMethod:pack.payMethod,
       memo:String(x.memo||'').slice(0,60),
       createdAt:Number(x.createdAt)||Date.now()
     };
@@ -758,7 +784,20 @@ function bankWallets(){
   return state.wallets.filter(function(w){return w.group==='bank';});
 }
 function walletOf(it){
+  if(it&&it.payMethod==='credit') return null;
   return walletById(it.walletId)||bankWallets()[0]||state.wallets[0];
+}
+function payOf(it){
+  if(it&&isPay(it.payMethod)) return it.payMethod;
+  var w=walletById(it&&it.walletId);
+  return (w&&w.group==='cash')?'cash':'transfer';
+}
+function payBadge(it){
+  var p=payOf(it), many=bankWallets().length>1, w=walletById(it.walletId);
+  if(p==='cash') return '💵 현금';
+  if(p==='credit') return '💳 신용카드';
+  if(p==='debit') return (many&&w)?('💳 체크 · '+w.name):'💳 체크카드';
+  return (many&&w)?('🏦 계좌이체 · '+w.name):'🏦 계좌이체';
 }
 function walletNet(id){
   var n=0;
@@ -786,7 +825,6 @@ function summaryHTML(t){
   var tb=totalBal();
   var total=t.inc+t.exp;
   var incFlex=total?Math.max(t.inc,0):1, expFlex=total?t.exp:1;
-  if(total===0){ incFlex=1; expFlex=1; }
   var cash=cashWallet(), banks=bankWallets();
   var cashBal=cash?walletBal(cash):0;
   var bankTotal=groupBal('bank');
@@ -827,7 +865,9 @@ function summaryHTML(t){
     '<div class="sum-sep"></div>'+
     '<div class="sum-sub"><span>이번 달 남은 돈</span>'+
       '<span class="ss-r'+(t.bal<0?' neg':'')+'">'+(t.bal>0?'+':'')+won(t.bal)+'</span></div>'+
-    '<div class="ratio"><i class="in" style="flex:'+incFlex+'"></i><i class="ex" style="flex:'+expFlex+'"></i></div>'+
+    '<div class="ratio'+(total===0?' zero':'')+'" aria-hidden="true">'+
+      (total===0?'':'<i class="in" style="flex:'+incFlex+'"></i><i class="ex" style="flex:'+expFlex+'"></i>')+
+    '</div>'+
     '<div class="sum-row">'+
       '<div class="sum-item income"><span class="lbl">🌱 수입</span><b>'+(t.inc>0?'+':'')+won(t.inc)+'</b></div>'+
       '<div class="sum-item expense"><span class="lbl">🍪 지출</span><b>'+(t.exp>0?'-':'')+won(t.exp)+'</b></div>'+
@@ -839,7 +879,7 @@ function summaryHTML(t){
 function emptyHTML(filtered){
   if(filtered) return '<div class="empty">'+
     '<div class="empty-pig">🐷</div>'+
-    '<p class="empty-t">이 지럼에는 이 달 기록이 없어요</p>'+
+    '<p class="empty-t">이 필터에는 이 달 기록이 없어요</p>'+
     '<p class="empty-s">위의 <b>전체</b> 를 누르면 다 보여요!</p>'+
   '</div>';
   return '<div class="empty">'+
@@ -850,14 +890,14 @@ function emptyHTML(filtered){
 }
 function entryHTML(it){
   var c=catView(it);
-  var w=walletOf(it);
   var sign=it.type==='income'?'+':'-';
   var cls=it.type==='income'?'in':'ex';
+  var badge=it.type==='income'?(walletLabel(walletOf(it))||'🏦 계좌'):payBadge(it);
   return '<button class="entry" data-id="'+esc(it.id)+'">'+
     '<span class="cat-ic" style="background:'+tint(c.color,'22')+'">'+esc(c.emoji)+'</span>'+
     '<span class="entry-mid">'+
       '<span class="entry-cat">'+esc(c.name)+'</span>'+
-      '<span class="entry-sub"><span class="wbadge">'+esc(walletLabel(w))+'</span>'+
+      '<span class="entry-sub"><span class="wbadge">'+esc(badge)+'</span>'+
         (it.memo?'<span class="entry-memo">'+esc(it.memo)+'</span>':'')+'</span>'+
     '</span>'+
     '<span class="entry-amt '+cls+'">'+sign+won(it.amount)+'</span>'+
@@ -876,18 +916,23 @@ function filterHTML(hasItems){
     html+=chip('w:'+banks[0].id,'🏦 계좌');
   }else{
     html+=chip('g:bank','🏦 계좌 (전체)');
+  }
+  html+=chip('credit','💳 신용카드');
+  if(banks.length>1){
     banks.forEach(function(w){ html+=chip('w:'+w.id,'🏦 '+esc(w.name)); });
   }
   el.innerHTML=html+'</div>';
 }
 function filterValid(f){
   if(f==='all') return true;
+  if(f==='credit') return true;
   if(f.indexOf('g:')===0) return f.slice(2)==='cash'||f.slice(2)==='bank';
   if(f.indexOf('w:')===0) return !!walletById(f.slice(2));
   return false;
 }
 function inFilter(it,f){
   if(f==='all') return true;
+  if(f==='credit') return payOf(it)==='credit';
   var w=walletOf(it);
   if(f.indexOf('g:')===0) return !!w && w.group===f.slice(2);
   return it.walletId===f.slice(2);
@@ -1051,30 +1096,76 @@ function catGridHTML(type,sel){
       '<span class="ce">'+esc(c.emoji)+'</span><span class="cn">'+esc(c.name)+'</span></button>';
   }).join('');
 }
-function walletChipsHTML(sel){
-  var cash=cashWallet(), banks=bankWallets(), html='';
-  if(cash){
-    html+='<button type="button" class="'+(cash.id===sel?'on':'')+'" data-w="'+esc(cash.id)+'">💵 현금</button>';
+function payAreaHTML(){
+  var cash=cashWallet(), banks=bankWallets();
+  if(draft.type==='income'){
+    var ih='<label class="field-label">입금처</label><div class="wchips">';
+    if(cash){
+      ih+='<button type="button" data-w="'+esc(cash.id)+'" class="'+(draft.pay==='cash'?'on':'')+'">💵 현금</button>';
+    }
+    if(banks.length===1){
+      ih+='<button type="button" data-w="'+esc(banks[0].id)+'" class="'+(draft.pay!=='cash'?'on':'')+'">🏦 계좌</button>';
+    }else{
+      ih+='<span class="wbank"><span class="wbank-label">🏦 계좌</span>'+
+        banks.map(function(w){
+          return '<button type="button" data-w="'+esc(w.id)+'" class="'+(draft.pay!=='cash'&&w.id===draft.acct?'on':'')+'">'+esc(w.emoji)+' '+esc(w.name)+'</button>';
+        }).join('')+'</span>';
+    }
+    return ih+'</div>';
   }
-  if(banks.length===1){
-    html+='<button type="button" class="'+(banks[0].id===sel?'on':'')+'" data-w="'+esc(banks[0].id)+'">🏦 계좌</button>';
-  }else{
-    html+='<span class="wbank"><span class="wbank-label">🏦 계좌</span>'+
-      banks.map(function(w){
-        return '<button type="button" class="'+(w.id===sel?'on':'')+'" data-w="'+esc(w.id)+'">'+esc(w.emoji)+' '+esc(w.name)+'</button>';
-      }).join('')+'</span>';
+  var html='<label class="field-label">결제 방법</label>'+
+    '<div class="wchips pmchips">'+
+      '<button type="button" data-pay="cash" class="'+(draft.pay==='cash'?'on':'')+'">💵 현금</button>'+
+      '<button type="button" data-pay="transfer" class="'+(draft.pay==='transfer'?'on':'')+'">🏦 계좌이체</button>'+
+      '<button type="button" data-pay="debit" class="'+(draft.pay==='debit'?'on':'')+'">💳 체크카드</button>'+
+      '<button type="button" data-pay="credit" class="'+(draft.pay==='credit'?'on':'')+'">💳 신용카드</button>'+
+    '</div>';
+  if(draft.pay==='transfer'||draft.pay==='debit'){
+    html+='<label class="field-label">어느 계좌에서 빠져나가나요?</label><div class="wchips">'+
+      (banks.length===1
+        ? '<button type="button" data-acct="'+esc(banks[0].id)+'" class="on">'+esc(banks[0].emoji)+' '+esc(banks[0].name)+'</button>'
+        : banks.map(function(w){
+            return '<button type="button" data-acct="'+esc(w.id)+'" class="'+(w.id===draft.acct?'on':'')+'">'+esc(w.emoji)+' '+esc(w.name)+'</button>';
+          }).join(''))+
+      '</div>';
+  }else if(draft.pay==='credit'){
+    html+='<p class="hint pm">계좌 잔액은 바로 빠지지 않고 이번 달 지출에만 기록돼요.</p>';
   }
   return html;
+}
+/* 저장할 지갑·결제 방식 정리: 신용카드는 잔액을 건드리지 않는다 */
+function resolvePay(){
+  var banks=bankWallets(), cash=cashWallet();
+  function pickBank(){
+    var w=walletById(draft.acct);
+    if(!w||w.group!=='bank') w=banks[0]||state.wallets[0];
+    return w?w.id:null;
+  }
+  if(draft.type==='income'){
+    if(draft.pay==='cash') return {payMethod:'cash', walletId:cash?cash.id:null};
+    return {payMethod:'transfer', walletId:pickBank()};
+  }
+  if(draft.pay==='credit') return {payMethod:'credit', walletId:null};
+  if(draft.pay==='cash') return {payMethod:'cash', walletId:cash?cash.id:null};
+  return {payMethod:draft.pay==='debit'?'debit':'transfer', walletId:pickBank()};
 }
 function openEntrySheet(id){
   var it=id?state.items.find(function(x){return x.id===id;}):null;
   var defDate;
   if(it) defDate=it.date;
   else defDate=(view.month===THIS_MONTH)?TODAY:(view.month+'-01');
-  draft=it
-    ? {id:it.id,type:it.type,amount:it.amount,cat:it.cat,date:it.date,memo:it.memo,walletId:walletOf(it).id}
-    : {id:null,type:'expense',amount:0,cat:(state.cats.expense[0]||{}).id,date:defDate,memo:'',
-       walletId:(bankWallets()[0]||state.wallets[0]).id};
+  var defBank=(bankWallets()[0]||{}).id;
+  if(it){
+    var itw=walletById(it.walletId);
+    draft={
+      id:it.id,type:it.type,amount:it.amount,cat:it.cat,date:it.date,memo:it.memo,
+      pay:payOf(it),
+      acct:(itw&&itw.group==='bank')?itw.id:defBank
+    };
+  }else{
+    draft={id:null,type:'expense',amount:0,cat:(state.cats.expense[0]||{}).id,date:defDate,memo:'',
+       pay:'transfer',acct:defBank};
+  }
   if(draft.type==='expense'&&!state.cats.expense.some(function(c){return c.id===draft.cat;}))
     draft.cat=(state.cats.expense[0]||{}).id;
   if(draft.type==='income'&&!state.cats.income.some(function(c){return c.id===draft.cat;}))
@@ -1097,8 +1188,7 @@ function openEntrySheet(id){
     '</div>'+
     '<label class="field-label" id="catLabel">'+(draft.type==='income'?'어디서 받았어요?':'어디에 썼어요?')+'</label>'+
     '<div class="cat-grid" id="catGrid">'+catGridHTML(draft.type,draft.cat)+'</div>'+
-    '<label class="field-label" id="wLabel">'+(draft.type==='income'?'입금처':'결제수단')+'</label>'+
-    '<div class="wchips" id="wChips">'+walletChipsHTML(draft.walletId)+'</div>'+
+    '<div id="payArea">'+payAreaHTML()+'</div>'+
     '<div class="row2">'+
       '<div class="fld"><label for="dateInput">날짜</label>'+
         '<div class="date-field">'+
@@ -1118,6 +1208,8 @@ function openEntrySheet(id){
       var amtEl=wrap.querySelector('#amtInput');
       var gridEl=wrap.querySelector('#catGrid');
       var dateEl=wrap.querySelector('#dateInput');
+      var payArea=wrap.querySelector('#payArea');
+      function renderPay(){ payArea.innerHTML=payAreaHTML(); }
 
       wrap.querySelector('#typeToggle').addEventListener('click',function(e){
         var b=e.target.closest('button[data-t]'); if(!b) return;
@@ -1127,17 +1219,29 @@ function openEntrySheet(id){
         if(!state.cats[draft.type].some(function(c){return c.id===draft.cat;})) draft.cat=(state.cats[draft.type][0]||{}).id;
         gridEl.innerHTML=catGridHTML(draft.type,draft.cat);
         wrap.querySelector('#catLabel').textContent=draft.type==='income'?'어디서 받았어요?':'어디에 썼어요?';
-        wrap.querySelector('#wLabel').textContent=draft.type==='income'?'입금처':'결제수단';
+        if(draft.type==='income'&&draft.pay!=='cash'&&!draft.acct) draft.acct=(bankWallets()[0]||{}).id;
+        renderPay();
       });
       gridEl.addEventListener('click',function(e){
         var b=e.target.closest('.cat'); if(!b) return;
         draft.cat=b.dataset.cat;
         $$('.cat',gridEl).forEach(function(x){x.classList.toggle('on',x.dataset.cat===draft.cat);});
       });
-      wrap.querySelector('#wChips').addEventListener('click',function(e){
-        var b=e.target.closest('button[data-w]'); if(!b) return;
-        draft.walletId=b.dataset.w;
-        $$('#wChips button',wrap).forEach(function(x){x.classList.toggle('on',x.dataset.w===draft.walletId);});
+      payArea.addEventListener('click',function(e){
+        var b=e.target.closest('button'); if(!b) return;
+        if(b.dataset.pay){
+          draft.pay=b.dataset.pay;
+          if((draft.pay==='transfer'||draft.pay==='debit')&&!bankWallets().some(function(w){return w.id===draft.acct;}))
+            draft.acct=(bankWallets()[0]||{}).id;
+          renderPay(); return;
+        }
+        if(b.dataset.acct){ draft.acct=b.dataset.acct; renderPay(); return; }
+        if(b.dataset.w){
+          var cash=cashWallet();
+          if(cash&&b.dataset.w===cash.id){ draft.pay='cash'; draft.acct=null; }
+          else { draft.pay='transfer'; draft.acct=b.dataset.w; }
+          renderPay();
+        }
       });
       amtEl.addEventListener('input',function(){
         var digits=amtEl.value.replace(/[^0-9]/g,'').slice(0,11);
@@ -1181,15 +1285,15 @@ function openEntrySheet(id){
         var memo=wrap.querySelector('#memoInput').value.trim().slice(0,60);
         var cats=state.cats[draft.type];
         var cat=cats.some(function(c){return c.id===draft.cat;})?draft.cat:(cats[0]||{}).id;
-        var wid=walletById(draft.walletId)?draft.walletId:(bankWallets()[0]||state.wallets[0]).id;
+        var wOut=resolvePay();
         var wasEdit=!!draft.id;
         var sameMonth=(d.slice(0,7)===view.month);
         if(wasEdit&&sameMonth) keepScrollY=window.scrollY;
         if(wasEdit){
           var target=state.items.find(function(x){return x.id===draft.id;});
-          if(target){ target.date=d; target.type=draft.type; target.amount=draft.amount; target.cat=cat; target.walletId=wid; target.memo=memo; }
+          if(target){ target.date=d; target.type=draft.type; target.amount=draft.amount; target.cat=cat; target.walletId=wOut.walletId; target.payMethod=wOut.payMethod; target.memo=memo; }
         }else{
-          state.items.push({id:uid(),date:d,type:draft.type,amount:draft.amount,cat:cat,walletId:wid,memo:memo,createdAt:Date.now()});
+          state.items.push({id:uid(),date:d,type:draft.type,amount:draft.amount,cat:cat,walletId:wOut.walletId,payMethod:wOut.payMethod,memo:memo,createdAt:Date.now()});
         }
         save();
         view.month=d.slice(0,7);
