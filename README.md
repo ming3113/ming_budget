@@ -43,10 +43,10 @@
 
 ## GitHub Pages 에 올리기
 
-1. GitHub에서 `ming-budget` 이름으로 새 저장소를 만듭니다.
+1. GitHub에서 `ming_budget` 이름으로 새 저장소를 만듭니다.
 2. 이 폴더(`budget-app`) **안의 파일들**을 저장소 **루트**에 올립니다. (`index.html` 이 최상단에 오도록)
 3. 저장소 → **Settings → Pages** → *Build and deployment* 에서 **Source: Deploy from a branch**, **Branch: main / (root)** 선택 후 저장.
-4. 1~2분 뒤 `https://ming3113.github.io/ming-budget/` 로 열립니다.
+4. 1~2분 뒤 `https://ming3113.github.io/ming_budget/` 로 열립니다.
 5. **삼성 인터넷**: 주소를 연 뒤 오른쪽 아래 **≡ → 홈 화면에 추가**. **크롬**: 오른쪽 위 **⋮ → 홈 화면에 추가**.
 6. 홈 화면 아이콘으로 열면 주소창 없이 앱처럼 뜹니다. (아이콘은 돼지 얼굴 🐷)
 
