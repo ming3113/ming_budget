@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="동글 가계부">
 <meta name="format-detection" content="telephone=no">
-<meta name="app-version" content="1.0.0">
+<meta name="app-version" content="1.1.0">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -427,6 +427,64 @@ main{flex:1;padding:0 16px calc(112px + var(--sab))}
   box-shadow:0 4px 10px rgba(244,120,100,.24);
 }
 
+/* ── wallets (현금·계좌) ─────────────────── */
+.wallet-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:12px}
+.wallet-chip{
+  display:flex;align-items:center;gap:7px;min-width:0;text-align:left;
+  padding:8px 10px;border-radius:15px;
+  background:rgba(255,255,255,.82);border:1.5px solid #FFE7D6;
+  box-shadow:0 2px 6px rgba(214,170,140,.08);transition:.14s;
+}
+.wallet-chip:active{transform:scale(.97);background:#fff}
+.wc-emoji{flex:none;font-size:17px;line-height:1;width:22px;text-align:center}
+.wc-mid{min-width:0;display:flex;flex-direction:column}
+.wc-name{font-size:10.5px;color:#A5785F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+.wc-bal{font-family:'Jua',sans-serif;font-size:13px;letter-spacing:.2px;color:#4A3A35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+.wc-bal.neg{color:var(--coral-d)}
+.wallet-chip.add{border-style:dashed;border-color:#F3D7BF;background:rgba(255,255,255,.55);justify-content:center;gap:4px}
+.wallet-chip.add .wc-name{color:#B2907A;font-size:12px;font-family:'Jua',sans-serif}
+.wc-plus{font-family:'Jua',sans-serif;color:#D9A98A;font-size:15px;line-height:1}
+.sum-sep{height:1px;margin:13px 0 10px;background:linear-gradient(90deg,rgba(255,214,190,.05),rgba(255,206,176,.85),rgba(255,214,190,.05))}
+.sum-sub{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:11.5px;color:#A5785F;margin-bottom:2px}
+.sum-sub .ss-r{font-family:'Jua',sans-serif;font-size:13px;color:#4A3A35;white-space:nowrap}
+.sum-sub .ss-r.neg{color:var(--coral-d)}
+
+.filterbar{display:flex;gap:6px;overflow-x:auto;padding:13px 2px 1px;scrollbar-width:none}
+.filterbar::-webkit-scrollbar{display:none}
+.fchip{
+  flex:none;padding:7px 12px;border-radius:99px;font-size:12.5px;color:#8B6A57;
+  background:#FFF7ED;border:1px solid #F7E7D6;white-space:nowrap;transition:.14s;
+}
+.fchip.on{background:#FFE9D9;border-color:#FFCAA9;color:#C2683F;font-family:'Jua',sans-serif}
+.fchip:active{transform:scale(.96)}
+
+.wbadge{
+  flex:none;font-size:10.5px;color:#8B776E;background:#FBF1E6;border:1px solid #F4E4D4;
+  border-radius:99px;padding:0 6px;line-height:1.55;white-space:nowrap;
+}
+.entry-sub{display:flex;align-items:center;gap:5px;min-width:0}
+
+.wchips{display:flex;gap:6px;flex-wrap:wrap}
+.wchips button{
+  padding:9px 13px;border-radius:13px;font-family:'Jua',sans-serif;font-size:13px;
+  color:#8B6A57;background:#FFF3E5;border:1.5px solid #FFE5CF;transition:.14s;
+}
+.wchips button.on{background:#FFEFE2;border-color:#FFC6A8;color:#B55C3C;box-shadow:0 3px 9px rgba(240,150,120,.16)}
+.wchips button:active{transform:scale(.96)}
+
+.wallet-edit{display:flex;gap:7px;align-items:center}
+.wallet-edit .wemo{
+  width:56px;flex:none;text-align:center;padding:12px 0;border-radius:16px;background:#fff;
+  border:1.5px solid #F9E7D6;font-size:19px;outline:0;
+}
+.wallet-edit .wnm{
+  flex:1;min-width:0;padding:12px 13px;border-radius:16px;background:#fff;
+  border:1.5px solid #F9E7D6;font-size:15px;outline:0;
+}
+.wallet-edit .wemo:focus,.wallet-edit .wnm:focus{border-color:#FFC9AC;box-shadow:0 0 0 4px #FFF2E7}
+.hint{font-size:11.5px;color:var(--ink3);margin-top:9px;padding-left:3px;line-height:1.65}
+.hint b{color:#A5785F;font-weight:400}
+
 /* toast */
 .toast{
   position:fixed;left:50%;bottom:calc(96px + var(--sab));transform:translate(-50%,14px);
@@ -461,6 +519,7 @@ main{flex:1;padding:0 16px calc(112px + var(--sab))}
   <main>
     <section class="view on" id="viewList">
       <div id="summaryCard"></div>
+      <div id="filterBar"></div>
       <div id="listBody"></div>
     </section>
 
@@ -519,7 +578,13 @@ function defaultCats(){
   function mk(arr,p){return arr.map(function(c,k){return {id:p+(k+1),name:c[0],emoji:c[1],color:c[2]};});}
   return {expense:mk(e,'e'),income:mk(i,'i')};
 }
-function freshState(){return {v:1,cats:defaultCats(),items:[]};}
+function defaultWallets(){
+  return [
+    {id:'cash',name:'현금',emoji:'💵',initialBalance:0},
+    {id:'bank',name:'계좌',emoji:'🏦',initialBalance:0}
+  ];
+}
+function freshState(){return {v:2,cats:defaultCats(),wallets:defaultWallets(),items:[]};}
 
 function cleanCats(list){
   if(!Array.isArray(list)) return [];
@@ -532,27 +597,48 @@ function cleanCats(list){
     };
   });
 }
+function cleanWallets(list){
+  var out=[];
+  if(Array.isArray(list)) list.forEach(function(w){
+    if(!w||typeof w!=='object') return;
+    var id=String(w.id||uid());
+    if(!id||out.some(function(x){return x.id===id;})) return;
+    out.push({
+      id:id,
+      name:String(w.name||'').trim().slice(0,10)||'지갑',
+      emoji:String(w.emoji||'👛').slice(0,8)||'👛',
+      initialBalance:Math.round(Number(w.initialBalance)||0)
+    });
+  });
+  if(!out.length) out=defaultWallets();
+  return out;
+}
 function normalize(d){
   if(!d||typeof d!=='object'||!d.cats||typeof d.cats!=='object') return null;
   var exp=cleanCats(d.cats.expense), inc=cleanCats(d.cats.income);
+  var wallets=cleanWallets(d.wallets);
+  var wids=wallets.map(function(w){return w.id;});
+  var fallback=wids.indexOf('bank')>-1?'bank':wids[0];
   var items=Array.isArray(d.items)?d.items.filter(function(x){
     return x && typeof x.amount==='number' && x.amount>0 &&
       /^\d{4}-\d{2}-\d{2}$/.test(String(x.date)) &&
       (x.type==='expense'||x.type==='income');
   }).map(function(x){
+    var wid=String(x.walletId||'');
     return {
       id:String(x.id||uid()),
       date:String(x.date),
       type:x.type,
       amount:Math.round(x.amount),
       cat:String(x.cat||''),
+      walletId:wids.indexOf(wid)>-1?wid:fallback,
       memo:String(x.memo||'').slice(0,60),
       createdAt:Number(x.createdAt)||Date.now()
     };
   }):[];
   if(!exp.length){exp=defaultCats().expense;}
   if(!inc.length){inc=defaultCats().income;}
-  return {v:1,cats:{expense:exp,income:inc},items:items};
+  return {v:2,cats:{expense:exp,income:inc},wallets:wallets,items:items};
 }
 function save(){
   try{ localStorage.setItem(LS,JSON.stringify(state)); }
@@ -565,7 +651,7 @@ try{
 }catch(e){ state=freshState(); }
 
 /* ── view state ─────────────────────────── */
-var view={month:THIS_MONTH,tab:'list',statType:'expense'};
+var view={month:THIS_MONTH,tab:'list',statType:'expense',filter:'all'};
 
 /* ── helpers ────────────────────────────── */
 function monthItems(m){
@@ -604,18 +690,51 @@ function dateDisp(d){
   return dt.getFullYear()+'년 '+(dt.getMonth()+1)+'월 '+dt.getDate()+'일 ('+WD[dt.getDay()]+')';
 }
 
+/* ── wallets ────────────────────────────── */
+function walletById(id){
+  return state.wallets.find(function(w){return w.id===id;})||null;
+}
+function walletOf(it){
+  return walletById(it.walletId)||state.wallets[0];
+}
+function walletNet(id){
+  var n=0;
+  state.items.forEach(function(it){ if(it.walletId===id) n+=(it.type==='income'?it.amount:-it.amount); });
+  return n;
+}
+function walletBal(w){
+  return Math.round(Number(w.initialBalance)||0)+walletNet(w.id);
+}
+function totalBal(){
+  return state.wallets.reduce(function(s,w){return s+walletBal(w);},0);
+}
+
 /* ── summary ────────────────────────────── */
-function summaryHTML(t,count){
-  var balCls=t.bal<0?' neg':'';
+function summaryHTML(t){
+  var tb=totalBal();
   var total=t.inc+t.exp;
   var incFlex=total?Math.max(t.inc,0):1, expFlex=total?t.exp:1;
   if(total===0){ incFlex=1; expFlex=1; }
-  var warn=t.bal<0?'<div class="sum-warn">지출이 수입보다 많아요 😢</div>':'';
+  var chips=state.wallets.map(function(w){
+    var b=walletBal(w);
+    return '<button type="button" class="wallet-chip" data-wallet="'+esc(w.id)+'">'+
+      '<span class="wc-emoji">'+esc(w.emoji)+'</span>'+
+      '<span class="wc-mid"><span class="wc-name">'+esc(w.name)+'</span>'+
+        '<b class="wc-bal'+(b<0?' neg':'')+'">'+won(b)+'</b></span>'+
+    '</button>';
+  }).join('');
   return ''+
   '<div class="card summary">'+
-    '<div class="sum-label">남은 돈</div>'+
-    '<div class="sum-balance'+balCls+'">'+won(t.bal)+'</div>'+
-    warn+
+    '<div class="sum-label">💰 전체 현재 잔액</div>'+
+    '<div class="sum-balance'+(tb<0?' neg':'')+'">'+won(tb)+'</div>'+
+    '<div class="wallet-grid">'+chips+
+      '<button type="button" class="wallet-chip add" id="walletAdd">'+
+        '<span class="wc-plus">＋</span><span class="wc-mid"><span class="wc-name">항목 추가</span></span>'+
+      '</button>'+
+    '</div>'+
+    '<div class="sum-sep"></div>'+
+    '<div class="sum-sub"><span>이번 달 남은 돈</span>'+
+      '<span class="ss-r'+(t.bal<0?' neg':'')+'">'+(t.bal>0?'+':'')+won(t.bal)+'</span></div>'+
     '<div class="ratio"><i class="in" style="flex:'+incFlex+'"></i><i class="ex" style="flex:'+expFlex+'"></i></div>'+
     '<div class="sum-row">'+
       '<div class="sum-item income"><span class="lbl">🌱 수입</span><b>'+(t.inc>0?'+':'')+won(t.inc)+'</b></div>'+
@@ -625,7 +744,12 @@ function summaryHTML(t,count){
 }
 
 /* ── list ───────────────────────────────── */
-function emptyHTML(){
+function emptyHTML(filtered){
+  if(filtered) return '<div class="empty">'+
+    '<div class="empty-pig">🐷</div>'+
+    '<p class="empty-t">이 지럼에는 이 달 기록이 없어요</p>'+
+    '<p class="empty-s">위의 <b>전체</b> 를 누르면 다 보여요!</p>'+
+  '</div>';
   return '<div class="empty">'+
     '<div class="empty-pig">🐷</div>'+
     '<p class="empty-t">아직 이 달 기록이 없어요</p>'+
@@ -634,23 +758,38 @@ function emptyHTML(){
 }
 function entryHTML(it){
   var c=catView(it);
+  var w=walletOf(it);
   var sign=it.type==='income'?'+':'-';
   var cls=it.type==='income'?'in':'ex';
   return '<button class="entry" data-id="'+esc(it.id)+'">'+
     '<span class="cat-ic" style="background:'+tint(c.color,'22')+'">'+esc(c.emoji)+'</span>'+
     '<span class="entry-mid">'+
       '<span class="entry-cat">'+esc(c.name)+'</span>'+
-      (it.memo?'<span class="entry-memo">'+esc(it.memo)+'</span>':'')+
+      '<span class="entry-sub"><span class="wbadge">'+esc(w.emoji)+' '+esc(w.name)+'</span>'+
+        (it.memo?'<span class="entry-memo">'+esc(it.memo)+'</span>':'')+'</span>'+
     '</span>'+
     '<span class="entry-amt '+cls+'">'+sign+won(it.amount)+'</span>'+
   '</button>';
 }
+function filterHTML(hasItems){
+  var el=$('#filterBar');
+  if(!hasItems){ el.innerHTML=''; return; }
+  var html='<div class="filterbar">'+
+    '<button type="button" class="fchip'+(view.filter==='all'?' on':'')+'" data-f="all">전체</button>'+
+    state.wallets.map(function(w){
+      return '<button type="button" class="fchip'+(view.filter===w.id?' on':'')+'" data-f="'+esc(w.id)+'">'+
+        esc(w.emoji)+' '+esc(w.name)+'</button>';
+    }).join('')+'</div>';
+  el.innerHTML=html;
+}
 function renderList(){
-  var list=monthItems(view.month);
-  var t=totals(list);
-  $('#summaryCard').innerHTML=summaryHTML(t,list.length);
+  var all=monthItems(view.month);
+  if(view.filter!=='all'&&!walletById(view.filter)) view.filter='all';
+  var list=(view.filter==='all')?all:all.filter(function(it){return it.walletId===view.filter;});
+  $('#summaryCard').innerHTML=summaryHTML(totals(all));
+  filterHTML(all.length>0);
   var body=$('#listBody');
-  if(!list.length){ body.innerHTML=emptyHTML(); return; }
+  if(!list.length){ body.innerHTML=emptyHTML(all.length>0); return; }
   var byDate={}, order=[];
   list.slice().sort(function(a,b){
     if(a.date===b.date) return (b.createdAt||0)-(a.createdAt||0);
@@ -802,14 +941,21 @@ function catGridHTML(type,sel){
       '<span class="ce">'+esc(c.emoji)+'</span><span class="cn">'+esc(c.name)+'</span></button>';
   }).join('');
 }
+function walletChipsHTML(sel){
+  return state.wallets.map(function(w){
+    return '<button type="button" class="'+(w.id===sel?'on':'')+'" data-w="'+esc(w.id)+'">'+
+      esc(w.emoji)+' '+esc(w.name)+'</button>';
+  }).join('');
+}
 function openEntrySheet(id){
   var it=id?state.items.find(function(x){return x.id===id;}):null;
   var defDate;
   if(it) defDate=it.date;
   else defDate=(view.month===THIS_MONTH)?TODAY:(view.month+'-01');
   draft=it
-    ? {id:it.id,type:it.type,amount:it.amount,cat:it.cat,date:it.date,memo:it.memo}
-    : {id:null,type:'expense',amount:0,cat:(state.cats.expense[0]||{}).id,date:defDate,memo:''};
+    ? {id:it.id,type:it.type,amount:it.amount,cat:it.cat,date:it.date,memo:it.memo,walletId:walletOf(it).id}
+    : {id:null,type:'expense',amount:0,cat:(state.cats.expense[0]||{}).id,date:defDate,memo:'',
+       walletId:(walletById('bank')||state.wallets[0]).id};
   if(draft.type==='expense'&&!state.cats.expense.some(function(c){return c.id===draft.cat;}))
     draft.cat=(state.cats.expense[0]||{}).id;
   if(draft.type==='income'&&!state.cats.income.some(function(c){return c.id===draft.cat;}))
@@ -830,8 +976,10 @@ function openEntrySheet(id){
       '<button type="button" data-add="50000">+5만</button>'+
       '<button type="button" class="clear" data-clear="1">지우기</button>'+
     '</div>'+
-    '<label class="field-label">어디에 썼어요?</label>'+
+    '<label class="field-label">어디서 썼어요?</label>'+
     '<div class="cat-grid" id="catGrid">'+catGridHTML(draft.type,draft.cat)+'</div>'+
+    '<label class="field-label">결제수단</label>'+
+    '<div class="wchips" id="wChips">'+walletChipsHTML(draft.walletId)+'</div>'+
     '<div class="row2">'+
       '<div class="fld"><label for="dateInput">날짜</label>'+
         '<div class="date-field">'+
@@ -864,6 +1012,11 @@ function openEntrySheet(id){
         var b=e.target.closest('.cat'); if(!b) return;
         draft.cat=b.dataset.cat;
         $$('.cat',gridEl).forEach(function(x){x.classList.toggle('on',x.dataset.cat===draft.cat);});
+      });
+      wrap.querySelector('#wChips').addEventListener('click',function(e){
+        var b=e.target.closest('button[data-w]'); if(!b) return;
+        draft.walletId=b.dataset.w;
+        $$('#wChips button',wrap).forEach(function(x){x.classList.toggle('on',x.dataset.w===draft.walletId);});
       });
       amtEl.addEventListener('input',function(){
         var digits=amtEl.value.replace(/[^0-9]/g,'').slice(0,11);
@@ -907,20 +1060,93 @@ function openEntrySheet(id){
         var memo=wrap.querySelector('#memoInput').value.trim().slice(0,60);
         var cats=state.cats[draft.type];
         var cat=cats.some(function(c){return c.id===draft.cat;})?draft.cat:(cats[0]||{}).id;
+        var wid=walletById(draft.walletId)?draft.walletId:state.wallets[0].id;
         var wasEdit=!!draft.id;
         var sameMonth=(d.slice(0,7)===view.month);
         if(wasEdit&&sameMonth) keepScrollY=window.scrollY;
         if(wasEdit){
           var target=state.items.find(function(x){return x.id===draft.id;});
-          if(target){ target.date=d; target.type=draft.type; target.amount=draft.amount; target.cat=cat; target.memo=memo; }
+          if(target){ target.date=d; target.type=draft.type; target.amount=draft.amount; target.cat=cat; target.walletId=wid; target.memo=memo; }
         }else{
-          state.items.push({id:uid(),date:d,type:draft.type,amount:draft.amount,cat:cat,memo:memo,createdAt:Date.now()});
+          state.items.push({id:uid(),date:d,type:draft.type,amount:draft.amount,cat:cat,walletId:wid,memo:memo,createdAt:Date.now()});
         }
         save();
         view.month=d.slice(0,7);
         closeSheet(); render();
         if(!wasEdit) window.scrollTo(0,0);
         toast(wasEdit?'고쳤어요 ✨':'저장했어요 🐷');
+      });
+    }
+  );
+}
+
+/* ── wallet sheet ───────────────────────── */
+var wDraft=null;
+function openWalletSheet(id){
+  var w=id?walletById(id):null;
+  var isNew=!w;
+  var cur=w?walletBal(w):0;
+  wDraft={id:w?w.id:null,emoji:w?w.emoji:'👛',name:w?w.name:'',bal:cur};
+  var canDel=!!w&&state.wallets.length>1;
+  openSheet(
+    '<div class="sheet-head"><h2>'+(isNew?'새 항목 추가':'지감·잔액 고치기')+'</h2><button class="xbtn" data-close>✕</button></div>'+
+    '<div class="wallet-edit">'+
+      '<input class="wemo" id="wEmoji" maxlength="8" value="'+esc(wDraft.emoji)+'" aria-label="이모지">'+
+      '<input class="wnm" id="wName" maxlength="10" value="'+esc(wDraft.name)+'" placeholder="예) 비상금" aria-label="이름">'+
+    '</div>'+
+    '<label class="field-label" for="wBal">'+'지금 가진 현재 잔액</label>'+
+    '<div class="amt-box"><input id="wBal" class="amt" type="text" inputmode="numeric" autocomplete="off" placeholder="0" value="'+(cur?fmt(cur):'')+'"><span class="w">원</span></div>'+
+    '<p class="hint">지금 가진 현재 잔액을 적으면 이후 수입·지출에 따라 <b>자동으로 바뀌어요</b>.</p>'+
+    '<div class="sheet-actions">'+
+      (canDel?'<button type="button" class="btn-del" id="wDel">삭제</button>':'')+
+      '<button type="button" class="btn-primary" id="wSave">'+(isNew?'추가하기':'저장하기')+'</button>'+
+    '</div>'+
+    (canDel?'<p class="menu-note">지우면 이 항목의 기록·잔액은 기본 항목으로 옮겨져요.</p>':''),
+    function(wrap){
+      wrap.querySelector('[data-close]').addEventListener('click',function(){ closeSheet(); });
+      var balEl=wrap.querySelector('#wBal');
+      function paintBal(){
+        balEl.value=wDraft.bal?fmt(wDraft.bal):'';
+      }
+      balEl.addEventListener('input',function(){
+        var neg=/^\s*-/.test(balEl.value);
+        var digits=balEl.value.replace(/[^0-9]/g,'').slice(0,11);
+        var n=digits?parseInt(digits,10):0;
+        wDraft.bal=neg?-n:n;
+        balEl.value=wDraft.bal?fmt(wDraft.bal):'';
+      });
+      wrap.querySelector('#wSave').addEventListener('click',function(){
+        var name=wrap.querySelector('#wName').value.trim().slice(0,10);
+        var emoji=wrap.querySelector('#wEmoji').value.trim().slice(0,8)||'👛';
+        if(!name){ toast('이름을 적어주세요 ✏️'); wrap.querySelector('#wName').focus(); return; }
+        if(isNew){
+          state.wallets.push({id:uid(),name:name,emoji:emoji,initialBalance:Math.round(wDraft.bal)});
+        }else{
+          var w2=walletById(wDraft.id);
+          if(!w2){ closeSheet(); return; }
+          w2.name=name; w2.emoji=emoji;
+          // 지금 잔액을 그대로 보이게: initialBalance = 입력한 잔액 - (수입-지출)
+          w2.initialBalance=Math.round(wDraft.bal-walletNet(w2.id));
+        }
+        save(); closeSheet(); render();
+        toast(isNew?'새 항목을 추가했어요 👛':'잔액을 맞쳤어요 ✨');
+      });
+      var del=wrap.querySelector('#wDel');
+      if(del) del.addEventListener('click',function(){
+        var w2=walletById(wDraft.id); if(!w2) return;
+        if(state.wallets.length<=1){ toast('지감은 한 개 이상 있어야 해요 🐷'); return; }
+        var others=state.wallets.filter(function(x){return x.id!==w2.id;});
+        var target=others.find(function(x){return x.id==='bank';})||others[0];
+        var moved=state.items.filter(function(it){return it.walletId===w2.id;}).length;
+        var msg='\''+w2.name+'\' 항목을 지울까요?'+
+          (moved?'\n이 항목의 기록 '+moved+'건과 잔액은 \''+target.name+'\'(으)로 옮겨져요.':'\n잔액도 함께 사라져요.');
+        if(!confirm(msg)) return;
+        state.items.forEach(function(it){ if(it.walletId===w2.id) it.walletId=target.id; });
+        target.initialBalance=Math.round(Number(target.initialBalance)||0)+Math.round(Number(w2.initialBalance)||0);
+        state.wallets=state.wallets.filter(function(x){return x.id!==w2.id;});
+        if(view.filter===w2.id) view.filter='all';
+        save(); closeSheet(); render();
+        toast('\''+w2.name+'\' 항목을 지웠어요');
       });
     }
   );
@@ -951,7 +1177,7 @@ function openMenu(){
 
 /* ── backup ─────────────────────────────── */
 function exportJSON(){
-  var payload={app:'동글 가계부',version:1,exportedAt:new Date().toISOString(),cats:state.cats,items:state.items};
+  var payload={app:'동글 가계부',version:2,exportedAt:new Date().toISOString(),cats:state.cats,wallets:state.wallets,items:state.items};
   var blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
@@ -978,7 +1204,7 @@ $('#importFile').addEventListener('change',function(){
 });
 function resetAll(){
   if(!confirm('모든 기록과 카테고리를 지울까요?\n되돌릴 수 없어요.')) return;
-  state=freshState(); save(); closeSheet(); view.month=THIS_MONTH; render();
+  state=freshState(); view.filter='all'; save(); closeSheet(); view.month=THIS_MONTH; render();
   toast('깨끗하게 비웠어요 🧹');
 }
 
@@ -1076,6 +1302,16 @@ $$('.tab[data-tab]').forEach(function(b){
 $('#listBody').addEventListener('click',function(e){
   var b=e.target.closest('.entry'); if(!b) return;
   openEntrySheet(b.dataset.id);
+});
+$('#summaryCard').addEventListener('click',function(e){
+  if(e.target.closest('#walletAdd')){ openWalletSheet(null); return; }
+  var b=e.target.closest('.wallet-chip[data-wallet]'); if(!b) return;
+  openWalletSheet(b.dataset.wallet);
+});
+$('#filterBar').addEventListener('click',function(e){
+  var b=e.target.closest('.fchip'); if(!b) return;
+  if(view.filter===b.dataset.f) return;
+  view.filter=b.dataset.f; renderList();
 });
 $('#rankCard').addEventListener('click',function(){ /* 통계는 읽기 전용 */ });
 
