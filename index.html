@@ -1752,8 +1752,6 @@ function catBeginDrag(press){
   var listEl=press.listEl, m=catMeasure(listEl), s=press.idx;
   catCancelPress();
   if(!m[s]||catDrag) return;
-  var active=document.activeElement;
-  if(active&&active!==document.body&&listEl.contains(active)&&active.blur) active.blur();
   catDrag={
     listEl:listEl, m:m, s:s, row:m[s].el, pid:press.pid,
     startY:press.y, lastY:press.y,
@@ -1804,8 +1802,11 @@ function catDragLayout(){
 function catDragAutoScroll(){
   var d=catDrag; if(!d||!d.scroll) return;
   var sc=d.scroll, r=sc.getBoundingClientRect(), y=d.lastY, edge=74, sp=0;
-  if(y<r.top+edge) sp=-Math.ceil(Math.min(14,Math.max(3,(r.top+edge-y)/4)));
-  else if(y>r.bottom-edge) sp=Math.ceil(Math.min(14,Math.max(3,(y-(r.bottom-edge))/4)));
+  var vv=window.visualViewport;
+  var topEdge=r.top, botEdge=r.bottom;
+  if(vv){ topEdge=Math.max(topEdge,vv.offsetTop); botEdge=Math.min(botEdge,vv.offsetTop+vv.height); }
+  if(y<topEdge+edge) sp=-Math.ceil(Math.min(14,Math.max(3,(topEdge+edge-y)/4)));
+  else if(y>botEdge-edge) sp=Math.ceil(Math.min(14,Math.max(3,(y-(botEdge-edge))/4)));
   d.sp=sp;
   if(!sp){ if(d.raf){ cancelAnimationFrame(d.raf); d.raf=0; } return; }
   if(d.raf) return;
