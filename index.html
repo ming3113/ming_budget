@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="동글 가계부">
 <meta name="format-detection" content="telephone=no">
-<meta name="app-version" content="1.4.0">
+<meta name="app-version" content="1.5.0">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -402,7 +402,25 @@ main{flex:1;padding:0 16px calc(112px + var(--sab))}
 .menu-note{font-size:11.5px;color:var(--ink3);text-align:center;margin-top:10px;line-height:1.6}
 
 /* category editor */
-.cat-row{display:flex;gap:7px;align-items:center;margin-bottom:7px}
+.cat-row{display:flex;gap:6px;align-items:center;padding:4px 5px;margin-bottom:3px;position:relative;border-radius:16px;
+  transition:transform .2s cubic-bezier(.2,.8,.3,1)}
+.cat-row.dragging{
+  transition:none;z-index:7;cursor:grabbing;
+  background:#FFF6EC;outline:2px solid #FFD3B8;outline-offset:1px;
+  box-shadow:0 12px 26px rgba(206,146,116,.30);
+}
+.cat-row.dragging .emo,.cat-row.dragging .nm{background:#FFFDF8;border-color:#FCDCC4}
+.cat-row .grip{
+  width:26px;align-self:stretch;flex:none;display:grid;place-items:center;
+  color:#D5A991;font-size:15px;line-height:1;border-radius:12px;
+  touch-action:none;cursor:grab;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+  transition:color .15s,background .15s;
+}
+.cat-row .grip:active,.cat-row.dragging .grip{color:#B98164;background:#FFEFE2}
+.cat-row .grip:focus-visible{outline:2px solid #FFD3B8;outline-offset:1px}
+#catList.is-dragging,#catList.is-dragging *{-webkit-user-select:none;user-select:none}
+.cat-row.press-armed{background:#FFF6EC}
 .cat-row .emo{
   width:48px;flex:none;text-align:center;padding:11px 0;border-radius:14px;background:#fff;
   border:1.5px solid #F9E7D6;font-size:18px;outline:0;
@@ -417,14 +435,6 @@ main{flex:1;padding:0 16px calc(112px + var(--sab))}
   color:#C99C8C;background:#FBF2E9;border:1px solid #F4E6D9;font-size:14px;
 }
 .cat-row .rm[disabled]{opacity:.35}
-.cat-row .ord{flex:none;display:flex;flex-direction:column;gap:3px}
-.cat-row .ord button{
-  width:34px;height:19px;display:grid;place-items:center;padding:0;
-  border-radius:9px;color:#C79A86;background:#FBF2E9;border:1px solid #F4E6D9;
-  font-size:9px;line-height:1;transition:.12s;touch-action:manipulation;
-}
-.cat-row .ord button:active:not([disabled]){background:#FFEAD8;color:#B57A5C;transform:scale(.93)}
-.cat-row .ord button[disabled]{opacity:.28}
 .cat-row.mv-flash{outline:2px solid #FFCFB2;outline-offset:2px;border-radius:16px}
 .cat-add{display:flex;gap:7px;margin-top:12px}
 .cat-add input{
@@ -1206,6 +1216,7 @@ function openSheet(html,onOpen){
 }
 function closeSheet(immediate){
   if(!sheetEl) return;
+  if(typeof catAbort==='function') catAbort();
   var el=sheetEl; sheetEl=null;
   el.classList.remove('on');
   document.body.classList.remove('noscroll');
@@ -1686,22 +1697,16 @@ function resetAll(){
 var catDraft=null, catTab='expense';
 function catRowsHTML(){
   var list=catDraft[catTab];
-  var last=list.length-1;
   return list.map(function(c,idx){
     return '<div class="cat-row" data-idx="'+idx+'">'+
+      '<button type="button" class="grip" data-grip="'+idx+'" aria-label="'+esc(c.name)+' 순서 바꾸기 — 꾹 눌러 위아래로" title="꾹 눌러 위아래로 움직이면 순서가 바뀌어요">⠿</button>'+
       '<input class="emo" maxlength="8" value="'+esc(c.emoji)+'" aria-label="이모지">'+
       '<input class="nm" maxlength="14" value="'+esc(c.name)+'" aria-label="카테고리 이름">'+
-      '<div class="ord">'+
-        '<button type="button" data-mv="up" data-idx="'+idx+'"'+(idx===0?' disabled':'')+
-          ' aria-label="'+esc(c.name)+' 위로 이동" title="위로">▲</button>'+
-        '<button type="button" data-mv="down" data-idx="'+idx+'"'+(idx===last?' disabled':'')+
-          ' aria-label="'+esc(c.name)+' 아래로 이동" title="아래로">▼</button>'+
-      '</div>'+
       '<button type="button" class="rm" data-rm="'+idx+'"'+(list.length<=1?' disabled':'')+' aria-label="삭제">✕</button>'+
     '</div>';
   }).join('');
 }
-/* ▲▼ 는 누르는 즉시 저장: state.cats 순서를 지금 초안 순서에 맞춰 바로 반영한다.
+/* 순서를 바꾸면 즉시 저장: state.cats 순서를 지금 초안 순서에 맞춰 바로 반영한다.
    (기록 추가 화면의 카테고리 그리드도 state.cats 순서를 그대로 쓴다) */
 function syncCatOrder(type){
   var want={};
@@ -1714,6 +1719,194 @@ function syncCatOrder(type){
     return want[c.id]!==undefined ? shared[k++] : c;
   });
 }
+
+/* 꾹 눌러 위아래로 끌어 순서 바꾸기 (Pointer Events + 롱프레스) */
+var catDrag=null, catPress=null, catDragLock=false;
+function catRowEls(listEl){ return Array.prototype.slice.call(listEl.querySelectorAll('.cat-row')); }
+function catMeasure(listEl){
+  var lr=listEl.getBoundingClientRect();
+  return catRowEls(listEl).map(function(el){
+    var rc=el.getBoundingClientRect();
+    return {el:el, top:rc.top-lr.top, h:rc.height};
+  });
+}
+function catSheetOf(el){
+  var p=el;
+  while(p){ if(p.classList&&p.classList.contains('sheet')) return p; p=p.parentNode; }
+  return null;
+}
+function catCancelPress(){
+  if(!catPress) return;
+  clearTimeout(catPress.timer);
+  if(catPress.row) catPress.row.classList.remove('press-armed');
+  catPress=null;
+}
+function catAbort(){
+  catCancelPress();
+  if(catDrag){
+    if(catDrag.raf) cancelAnimationFrame(catDrag.raf);
+    catDrag=null;
+  }
+}
+function catBeginDrag(press){
+  var listEl=press.listEl, m=catMeasure(listEl), s=press.idx;
+  catCancelPress();
+  if(!m[s]||catDrag) return;
+  var active=document.activeElement;
+  if(active&&active!==document.body&&listEl.contains(active)&&active.blur) active.blur();
+  catDrag={
+    listEl:listEl, m:m, s:s, row:m[s].el, pid:press.pid,
+    startY:press.y, lastY:press.y,
+    scroll:press.scroll||catSheetOf(listEl), startScroll:0,
+    dy:0, target:s, drop:0, raf:0, sp:0
+  };
+  catDrag.startScroll=catDrag.scroll?catDrag.scroll.scrollTop:0;
+  catDrag.maxScroll=catDrag.scroll?Math.max(0,catDrag.scroll.scrollHeight-catDrag.scroll.clientHeight):0;
+  m[s].el.classList.add('dragging');
+  m[s].el.style.transform='translateY(0px) scale(1.02)';
+  listEl.classList.add('is-dragging');
+  try{ if(navigator.vibrate) navigator.vibrate(8); }catch(e){}
+  catDragMove(press.y);
+}
+function catDragMove(clientY){
+  var d=catDrag; if(!d) return;
+  d.lastY=clientY;
+  var sd=d.scroll?(d.scroll.scrollTop-d.startScroll):0;
+  d.dy=(clientY-d.startY)+sd;
+  d.row.style.transform='translateY('+d.dy+'px) scale(1.02)';
+  catDragLayout();
+  catDragAutoScroll();
+}
+/* 행 높이를 재어 두고, 끌고 있는 행의 가운데가 어느 행의 가운데를 지나면
+   그 자리로 자리를 비켜 주도록 나머지 행을 transform 으로 밀어 둔다. */
+function catDragLayout(){
+  var d=catDrag, m=d.m, n=m.length, s=d.s;
+  var gap=(n>1)?Math.max(0,m[1].top-(m[0].top+m[0].h)):0;
+  var center=m[s].top+m[s].h/2+d.dy;
+  var t=0, j;
+  for(j=0;j<n;j++){ if(j!==s && m[j].top+m[j].h/2<center) t++; }
+  var others=[];
+  for(j=0;j<n;j++){ if(j!==s) others.push(j); }
+  var cur=m[0].top, drop=m[s].top;
+  for(var i=0;i<=others.length;i++){
+    if(i===t){ drop=cur; cur+=m[s].h+gap; }
+    if(i<others.length){
+      var k=others[i];
+      var off=cur-m[k].top;
+      m[k].el.style.transform=Math.abs(off)>0.4?('translateY('+off+'px)'):'translateY(0px)';
+      cur+=m[k].h+gap;
+    }
+  }
+  d.target=t;
+  d.drop=drop-m[s].top;
+}
+/* 목록 위/아래 가장자리로 끌면 자동으로 스크롤 */
+function catDragAutoScroll(){
+  var d=catDrag; if(!d||!d.scroll) return;
+  var sc=d.scroll, r=sc.getBoundingClientRect(), y=d.lastY, edge=74, sp=0;
+  if(y<r.top+edge) sp=-Math.ceil(Math.min(14,Math.max(3,(r.top+edge-y)/4)));
+  else if(y>r.bottom-edge) sp=Math.ceil(Math.min(14,Math.max(3,(y-(r.bottom-edge))/4)));
+  d.sp=sp;
+  if(!sp){ if(d.raf){ cancelAnimationFrame(d.raf); d.raf=0; } return; }
+  if(d.raf) return;
+  d.raf=requestAnimationFrame(function step(){
+    var dd=catDrag; if(!dd){ return; }
+    var before=dd.scroll.scrollTop;
+    /* 끌고 있는 행의 transform 이 스크롤 영역을 늘리므로, 처음 잰 실제 끝까지만 */
+    dd.scroll.scrollTop=Math.max(0,Math.min(dd.maxScroll,before+dd.sp));
+    if(dd.scroll.scrollTop===before){ dd.raf=0; return; }
+    catDragMove(dd.lastY);
+    dd.raf=requestAnimationFrame(step);
+  });
+}
+function catDragFinish(){
+  var d=catDrag; if(!d) return;
+  catDrag=null;
+  if(d.raf) cancelAnimationFrame(d.raf);
+  d.listEl.classList.remove('is-dragging');
+  catDragLock=true;
+  setTimeout(function(){ catDragLock=false; },260);
+  var row=d.row;
+  row.style.transition='transform .19s cubic-bezier(.2,.8,.3,1)';
+  row.style.transform='translateY('+(d.drop||0)+'px) scale(1)';
+  setTimeout(function(){
+    row.style.transition=''; row.style.transform='';
+    row.classList.remove('dragging');
+    var arr=catDraft[catTab];
+    if(d.target!==d.s&&arr.length>d.s){
+      var moved=arr.splice(d.s,1)[0];
+      arr.splice(Math.max(0,Math.min(d.target,arr.length)),0,moved);
+      syncCatOrder(catTab); save();
+    }
+    catRerenderList(d.target);
+  },200);
+}
+function catRerenderList(flashIdx){
+  var wrap=sheetEl; if(!wrap) return;
+  var listEl=wrap.querySelector('#catList'); if(!listEl) return;
+  var sc=wrap.querySelector('.sheet'), top=sc?sc.scrollTop:0;
+  listEl.innerHTML=catRowsHTML();
+  if(sc) sc.scrollTop=top;
+  if(flashIdx!=null){
+    var row=listEl.querySelector('.cat-row[data-idx="'+flashIdx+'"]');
+    if(row){ row.classList.add('mv-flash'); setTimeout(function(){ row.classList.remove('mv-flash'); },620); }
+  }
+}
+function catPointerDown(e){
+  if(catDrag||catDragLock) return;
+  if(e.button!==undefined&&e.button!==0) return;
+  var t=e.target;
+  if(!t||!t.closest) return;
+  if(t.closest('input,textarea,select,.rm,#catAdd,.sheet-actions,.sheet-head,.xbtn')) return;
+  var row=t.closest('.cat-row'); if(!row) return;
+  var listEl=row.closest('#catList'); if(!listEl) return;
+  var grip=!!t.closest('.grip');
+  catCancelPress();
+  var press={pid:e.pointerId, x:e.clientX, y:e.clientY, idx:Number(row.dataset.idx),
+             row:row, listEl:listEl, grip:grip, scroll:catSheetOf(listEl), timer:0};
+  catPress=press;
+  if(grip){
+    row.classList.add('press-armed');
+    try{ e.preventDefault(); }catch(err){}
+  }
+  press.timer=setTimeout(function(){
+    if(catPress!==press) return;
+    catBeginDrag(press);
+  }, grip?140:280);
+}
+function catPointerMove(e){
+  if(catPress&&e.pointerId===catPress.pid&&!catDrag){
+    var p=catPress, dx=e.clientX-p.x, dy=e.clientY-p.y, dist=dx*dx+dy*dy;
+    if(p.grip){ if(dist>36) catBeginDrag(p); }
+    else if(dist>100) catCancelPress();
+    if(!catDrag) return;
+  }
+  if(!catDrag||e.pointerId!==catDrag.pid) return;
+  if(e.cancelable) e.preventDefault();
+  catDragMove(e.clientY);
+}
+function catPointerUp(e){
+  if(catPress&&e.pointerId===catPress.pid) catCancelPress();
+  if(catDrag&&e.pointerId===catDrag.pid) catDragFinish();
+}
+function catKeyMove(e){
+  var g=e.target.closest&&e.target.closest('.grip'); if(!g) return;
+  var d=e.key==='ArrowUp'?-1:(e.key==='ArrowDown'?1:0);
+  if(!d) return;
+  e.preventDefault();
+  var row=g.closest('.cat-row'), listEl=row.closest('#catList');
+  var i=Number(row.dataset.idx), j=i+d, arr=catDraft[catTab];
+  if(j<0||j>=arr.length) return;
+  var tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp;
+  syncCatOrder(catTab); save();
+  catRerenderList(j);
+  var nb=listEl&&listEl.querySelector('.cat-row[data-idx="'+j+'"] .grip');
+  if(nb){ try{ nb.focus({preventScroll:true}); }catch(err){ try{ nb.focus(); }catch(e2){} } }
+}
+window.addEventListener('pointermove',catPointerMove,{passive:false});
+window.addEventListener('pointerup',catPointerUp);
+window.addEventListener('pointercancel',catPointerUp);
+
 function openCatSheet(){
   catDraft=JSON.parse(JSON.stringify(state.cats));
   catTab='expense';
@@ -1727,10 +1920,18 @@ function openCatSheet(){
       '<button type="submit">추가</button>'+
     '</form>'+
     '<div class="sheet-actions"><button type="button" class="btn-ghost" data-close>취소</button><button type="button" class="btn-primary" id="catSave">저장</button></div>'+
-    '<p class="menu-note">▲▼ 로 바꾼 순서는 바로 저장되고, 기록 화면에도 그대로 나와요.<br>지운 카테고리에 있던 기록은 같은 종류의 <b>기타</b>로 옮겨져요.</p>',
+    '<p class="menu-note">⠿ 손잡이를 꾹 누른 채 위아래로 움직이면 순서가 바로 바뀌어요.<br>바뀐 순서는 바로 저장되고, 기록 화면에도 그대로 나와요. 지운 카테고리에 있던 기록은 같은 종류의 <b>기타</b>로 옮겨져요.</p>',
     function(wrap){
       $$('[data-close]',wrap).forEach(function(b){ b.addEventListener('click',function(){ closeSheet(); }); });
       var listEl=wrap.querySelector('#catList');
+      var scroller=wrap.querySelector('.sheet');
+      /* 드래그 중에는 뒷 배경(모달)이 같이 스크롤되지 않게 */
+      if(scroller) scroller.addEventListener('touchmove',function(e){
+        if(catDrag&&e.cancelable) e.preventDefault();
+      },{passive:false});
+      listEl.addEventListener('pointerdown',catPointerDown);
+      listEl.addEventListener('keydown',catKeyMove);
+      listEl.addEventListener('contextmenu',function(e){ if(catDrag||catPress) e.preventDefault(); });
       wrap.querySelector('#catSeg').addEventListener('click',function(e){
         var b=e.target.closest('button[data-t]'); if(!b) return;
         catTab=b.dataset.t;
@@ -1744,32 +1945,6 @@ function openCatSheet(){
         if(e.target.classList.contains('nm')) catDraft[catTab][idx].name=e.target.value.slice(0,14);
       });
       listEl.addEventListener('click',function(e){
-        var mv=e.target.closest('[data-mv]');
-        if(mv){
-          if(mv.getAttribute('disabled')!==null) return;
-          var i=Number(mv.dataset.idx);
-          var d=mv.dataset.mv;
-          var j=(d==='up')?i-1:i+1;
-          var arr=catDraft[catTab];
-          if(j<0||j>=arr.length){ return; }
-          var tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp;
-          syncCatOrder(catTab);
-          save();
-          var scroller=wrap.querySelector('.sheet');
-          var sTop=scroller?scroller.scrollTop:0;
-          listEl.innerHTML=catRowsHTML();
-          if(scroller) scroller.scrollTop=sTop;
-          var row=listEl.querySelector('.cat-row[data-idx="'+j+'"]');
-          if(row){
-            row.classList.add('mv-flash');
-            setTimeout(function(){ row.classList.remove('mv-flash'); },700);
-            var nb=row.querySelector('[data-mv="'+d+'"]');
-            if(nb&&nb.getAttribute('disabled')===null){
-              try{ nb.focus({preventScroll:true}); }catch(err){ try{ nb.focus(); }catch(e2){} }
-            }
-          }
-          return;
-        }
         var b=e.target.closest('[data-rm]'); if(!b||b.disabled) return;
         var idx=Number(b.dataset.rm);
         catDraft[catTab].splice(idx,1);
