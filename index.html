@@ -417,6 +417,15 @@ main{flex:1;padding:0 16px calc(112px + var(--sab))}
   color:#C99C8C;background:#FBF2E9;border:1px solid #F4E6D9;font-size:14px;
 }
 .cat-row .rm[disabled]{opacity:.35}
+.cat-row .ord{flex:none;display:flex;flex-direction:column;gap:3px}
+.cat-row .ord button{
+  width:34px;height:19px;display:grid;place-items:center;padding:0;
+  border-radius:9px;color:#C79A86;background:#FBF2E9;border:1px solid #F4E6D9;
+  font-size:9px;line-height:1;transition:.12s;touch-action:manipulation;
+}
+.cat-row .ord button:active:not([disabled]){background:#FFEAD8;color:#B57A5C;transform:scale(.93)}
+.cat-row .ord button[disabled]{opacity:.28}
+.cat-row.mv-flash{outline:2px solid #FFCFB2;outline-offset:2px;border-radius:16px}
 .cat-add{display:flex;gap:7px;margin-top:12px}
 .cat-add input{
   padding:11px;border-radius:14px;background:#FFFDF9;border:1.5px dashed #F3DCC6;outline:0;font-size:14px;
@@ -1621,7 +1630,7 @@ function openWalletSheet(id){
 function openMenu(){
   openSheet(
     '<div class="sheet-head"><h2>가계부 설정</h2><button class="xbtn" data-close>✕</button></div>'+
-    '<button type="button" class="menu-item" data-a="cats"><span class="mi">🏷️</span><span>카테고리 편집<small>이름·이모지를 바꾸거나 새로 만들기</small></span></button>'+
+    '<button type="button" class="menu-item" data-a="cats"><span class="mi">🏷️</span><span>카테고리 편집<small>이름·이모지·순서를 바꾸거나 새로 만들기</small></span></button>'+
     '<button type="button" class="menu-item" data-a="export"><span class="mi">📤</span><span>백업 내보내기<small>JSON 파일로 저장해 두기</small></span></button>'+
     '<button type="button" class="menu-item" data-a="import"><span class="mi">📥</span><span>백업 불러오기<small>저장해 둔 JSON 파일 가져오기</small></span></button>'+
     '<button type="button" class="menu-item danger" data-a="reset"><span class="mi">🧹</span><span>전체 초기화<small>모든 기록·카테고리·현금·계좌 지우기</small></span></button>'+
@@ -1677,13 +1686,33 @@ function resetAll(){
 var catDraft=null, catTab='expense';
 function catRowsHTML(){
   var list=catDraft[catTab];
+  var last=list.length-1;
   return list.map(function(c,idx){
     return '<div class="cat-row" data-idx="'+idx+'">'+
       '<input class="emo" maxlength="8" value="'+esc(c.emoji)+'" aria-label="이모지">'+
       '<input class="nm" maxlength="14" value="'+esc(c.name)+'" aria-label="카테고리 이름">'+
+      '<div class="ord">'+
+        '<button type="button" data-mv="up" data-idx="'+idx+'"'+(idx===0?' disabled':'')+
+          ' aria-label="'+esc(c.name)+' 위로 이동" title="위로">▲</button>'+
+        '<button type="button" data-mv="down" data-idx="'+idx+'"'+(idx===last?' disabled':'')+
+          ' aria-label="'+esc(c.name)+' 아래로 이동" title="아래로">▼</button>'+
+      '</div>'+
       '<button type="button" class="rm" data-rm="'+idx+'"'+(list.length<=1?' disabled':'')+' aria-label="삭제">✕</button>'+
     '</div>';
   }).join('');
+}
+/* ▲▼ 는 누르는 즉시 저장: state.cats 순서를 지금 초안 순서에 맞춰 바로 반영한다.
+   (기록 추가 화면의 카테고리 그리드도 state.cats 순서를 그대로 쓴다) */
+function syncCatOrder(type){
+  var want={};
+  catDraft[type].forEach(function(c,i){ want[c.id]=i; });
+  var base=state.cats[type]||[];
+  var shared=base.filter(function(c){ return want[c.id]!==undefined; })
+    .sort(function(a,b){ return want[a.id]-want[b.id]; });
+  var k=0;
+  state.cats[type]=base.map(function(c){
+    return want[c.id]!==undefined ? shared[k++] : c;
+  });
 }
 function openCatSheet(){
   catDraft=JSON.parse(JSON.stringify(state.cats));
@@ -1698,7 +1727,7 @@ function openCatSheet(){
       '<button type="submit">추가</button>'+
     '</form>'+
     '<div class="sheet-actions"><button type="button" class="btn-ghost" data-close>취소</button><button type="button" class="btn-primary" id="catSave">저장</button></div>'+
-    '<p class="menu-note">지운 카테고리에 있던 기록은 같은 종류의 <b>기타</b>로 옮겨져요.</p>',
+    '<p class="menu-note">▲▼ 로 바꾼 순서는 바로 저장되고, 기록 화면에도 그대로 나와요.<br>지운 카테고리에 있던 기록은 같은 종류의 <b>기타</b>로 옮겨져요.</p>',
     function(wrap){
       $$('[data-close]',wrap).forEach(function(b){ b.addEventListener('click',function(){ closeSheet(); }); });
       var listEl=wrap.querySelector('#catList');
@@ -1715,6 +1744,32 @@ function openCatSheet(){
         if(e.target.classList.contains('nm')) catDraft[catTab][idx].name=e.target.value.slice(0,14);
       });
       listEl.addEventListener('click',function(e){
+        var mv=e.target.closest('[data-mv]');
+        if(mv){
+          if(mv.getAttribute('disabled')!==null) return;
+          var i=Number(mv.dataset.idx);
+          var d=mv.dataset.mv;
+          var j=(d==='up')?i-1:i+1;
+          var arr=catDraft[catTab];
+          if(j<0||j>=arr.length){ return; }
+          var tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp;
+          syncCatOrder(catTab);
+          save();
+          var scroller=wrap.querySelector('.sheet');
+          var sTop=scroller?scroller.scrollTop:0;
+          listEl.innerHTML=catRowsHTML();
+          if(scroller) scroller.scrollTop=sTop;
+          var row=listEl.querySelector('.cat-row[data-idx="'+j+'"]');
+          if(row){
+            row.classList.add('mv-flash');
+            setTimeout(function(){ row.classList.remove('mv-flash'); },700);
+            var nb=row.querySelector('[data-mv="'+d+'"]');
+            if(nb&&nb.getAttribute('disabled')===null){
+              try{ nb.focus({preventScroll:true}); }catch(err){ try{ nb.focus(); }catch(e2){} }
+            }
+          }
+          return;
+        }
         var b=e.target.closest('[data-rm]'); if(!b||b.disabled) return;
         var idx=Number(b.dataset.rm);
         catDraft[catTab].splice(idx,1);
@@ -1739,7 +1794,8 @@ function openCatSheet(){
         state.cats=catDraft;
         // 옮겨 담기: 사라진 카테고리의 기록은 같은 종류의 '기타'로
         state.items.forEach(function(it){
-          var list=state.cats[it.type];
+          var list=(it.type==='transfer')?null:state.cats[it.type];
+          if(!list) return;
           if(!list.some(function(c){return c.id===it.cat;})){
             var etc=list.find(function(c){return c.name.indexOf('기타')>-1;})||list[list.length-1];
             it.cat=etc.id;
